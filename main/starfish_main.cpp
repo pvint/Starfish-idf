@@ -22,6 +22,7 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
+
 /* The examples use WiFi configuration that you can set via 'make menuconfig'.
 
    If you'd rather not, just change the below entries to strings with
@@ -170,8 +171,10 @@ void connectWifi()
 					ESP_LOGE("Timeout connecting to %s\n", EXAMPLE_ESP_WIFI_SSID);
 					return;
 			}
-			fauxmo.enable(true);
 	}
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
+	ESP_LOGI(TAG, "Enabling fauxmo");
+	fauxmo.enable(true);
 
 }
 
@@ -179,6 +182,8 @@ extern "C" void app_main()
 {
 	// Init arduino crap
 	initArduino();
+	Serial.begin(115200);
+	Serial.print("==========================");
 	//pinMode(12, OUTPUT);
 	//digitalWrite(12, HIGH);
 	
@@ -214,7 +219,7 @@ extern "C" void app_main()
 
 	char d[12];
 
-	for (int i = 0; i < 8; i++)
+	for (int i = 0; i < 1; i++)
 	{
 		ESP_LOGI(TAG, "Adding fauxmo device %c (%d)\n", i + 49, i + 49);
 		sprintf(d, "Starfish %c", i + 49);
@@ -224,10 +229,19 @@ extern "C" void app_main()
 	fauxmo.onSetState([](unsigned char device_id, const char *device_name, bool state, unsigned char val)
 	{
 		unsigned int v = val << 4;
-		ESP_LOGI(TAG, "device_id = %d\tval = %d\n", device_id,v);
+		ESP_LOGI(TAG, "device_id = %d\tstate = %d\tval = %d\tv = %d\n", device_id, state, val, v);
 
-		ledc_set_fade_with_time( ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel, v, pwmFadeTime);
-		ledc_fade_start( ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel, LEDC_FADE_NO_WAIT);
+		if (state)
+		{
+			ledc_set_fade_with_time( ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel, v, pwmFadeTime);
+			ledc_fade_start( ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel, LEDC_FADE_NO_WAIT);
+		}
+		else
+		{
+			// turn off
+			ledc_set_duty(ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel, 0);
+			ledc_update_duty(ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel);
+		}
 	});
 		
 
@@ -243,4 +257,14 @@ extern "C" void app_main()
 	//ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
 	//wifi_init_sta();
 	connectWifi();
+
+
+
+	/// MAIN LOOP
+	while (1)
+	{
+		fauxmo.handle();
+
+		vTaskDelay(10 / portTICK_PERIOD_MS);
+	}
 }

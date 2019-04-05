@@ -100,6 +100,9 @@ fauxmoESP fauxmo;
 #define PWM6 18
 #define PWM7 19
 
+// Array to hold pin assignments
+int pwmPins[] = { PWM0, PWM1, PWM2, PWM3, PWM4, PWM5, PWM6, PWM7 };
+
 // Default PWM properties
 int freq = 5000;
 byte ledChannel = 0;
@@ -131,7 +134,7 @@ static void esp_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
         esp_bt_dev_set_device_name(d);
         free(d);
 
-        esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+        esp_bt_gap_set_scan_mode(ESP_BT_SCAN_MODE_CONNECTABLE_DISCOVERABLE);
         esp_spp_start_srv(sec_mask,role_slave, 0, SPP_SERVER_NAME);
         break;
 	}
@@ -328,10 +331,26 @@ static void parseJson(cJSON *root)
 	if (cJSON_IsNumber(ch) && cJSON_IsNumber(dc))
 	{
 		ESP_LOGI(TAG, "Got ch=%d & dc=%d\n", ch->valueint, dc->valueint);
-		//ledc_set_duty(LEDC_HS_MODE, ch->valueint, dc->valueint);
-		//ledc_update_duty(LEDC_HS_MODE,ch->valueint);
+		ledc_set_duty(LEDC_HS_MODE, (ledc_channel_t)ch->valueint, dc->valueint);
+		ledc_update_duty(LEDC_HS_MODE,(ledc_channel_t)ch->valueint);
 		//setPWM(ch->valueint, dc->valueint, 0);
 	}
+}
+
+void pollFauxmo( void * parameter )
+{
+
+
+        ESP_LOGI(TAG,"******************** Task");
+
+	while (1)
+	{
+		fauxmo.handle();
+		vTaskDelay(10 / portTICK_PERIOD_MS);
+	}
+     	
+	vTaskDelete( NULL );
+
 }
 
 void connectWifi()
@@ -362,73 +381,6 @@ void connectWifi()
 
 extern "C" void app_main()
 {
-	// Init arduino crap
-	initArduino();
-	Serial.begin(115200);
-	Serial.print("==========================");
-	//pinMode(12, OUTPUT);
-	//digitalWrite(12, HIGH);
-	
-	ledc_timer.duty_resolution = LEDC_TIMER_12_BIT; // resolution of PWM duty
-	ledc_timer.freq_hz = 5000;					  // frequency of PWM signal
-	ledc_timer.speed_mode = LEDC_HS_MODE;		   // timer mode
-	ledc_timer.timer_num = LEDC_HS_TIMER;			// timer index
-	
-	// Set configuration of timer0 for high speed channels
-	ledc_timer_config(&ledc_timer);
-
-	ledc_channel[0].channel = (ledc_channel_t)0;
-	ledc_channel[0].duty = 0;
-	ledc_channel[0].gpio_num = PWM0;
-	ledc_channel[0].speed_mode = LEDC_HS_MODE;
-	ledc_channel[0].hpoint = 0;
-	ledc_channel[0].timer_sel = LEDC_HS_TIMER;
-
-
-	// Set LED Controller with previously prepared configuration
-	//for (ch = 0; ch < LEDC_TEST_CH_NUM; ch++) {
-		ledc_channel_config(&ledc_channel[0]);
-	//}
-
-	// Initialize fade service.
-	ledc_fade_func_install(0);
-
-
-	// fauxmo testing
-	ESP_LOGI(TAG, "Setting up fauxmoESP");
-	fauxmo.createServer(true);
-	fauxmo.setPort(80);
-
-	char d[12];
-
-	for (int i = 0; i < 1; i++)
-	{
-		ESP_LOGI(TAG, "Adding fauxmo device %c (%d)\n", i + 49, i + 49);
-		sprintf(d, "Starfish %c", i + 49);
-		fauxmo.addDevice(d);
-	}
-
-	fauxmo.onSetState([](unsigned char device_id, const char *device_name, bool state, unsigned char val)
-	{
-		unsigned int v = val << 4;
-		ESP_LOGI(TAG, "device_id = %d\tstate = %d\tval = %d\tv = %d\n", device_id, state, val, v);
-
-		if (state)
-		{
-			ledc_set_fade_with_time( ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel, v, pwmFadeTime);
-			ledc_fade_start( ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel, LEDC_FADE_NO_WAIT);
-		}
-		else
-		{
-			// turn off
-			ledc_set_duty(ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel, 0);
-			ledc_update_duty(ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel);
-		}
-	});
-		
-
-	connectWifi();
-
 
 	//Initialize NVS
 	esp_err_t ret = nvs_flash_init();
@@ -443,6 +395,8 @@ extern "C" void app_main()
 
 	// init Bluetooth
 
+        //    ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_BLE));
+
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
 
     if ((ret = esp_bt_controller_init(&bt_cfg)) != ESP_OK) {
@@ -455,7 +409,6 @@ extern "C" void app_main()
         return;
     }
 
-	ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_BLE));
 
     if ((ret = esp_bluedroid_init()) != ESP_OK) {
         ESP_LOGE(SPP_TAG, "%s initialize bluedroid failed: %s\n", __func__, esp_err_to_name(ret));
@@ -494,14 +447,92 @@ extern "C" void app_main()
     esp_bt_pin_type_t pin_type = ESP_BT_PIN_TYPE_VARIABLE;
     esp_bt_pin_code_t pin_code;
     esp_bt_gap_set_pin(pin_type, 0, pin_code);
+	
+	// Init arduino crap
+	initArduino();
+	//Serial.begin(115200);
+	//Serial.print("==========================");
+	//pinMode(12, OUTPUT);
+	//digitalWrite(12, HIGH);
+	
+	ledc_timer.duty_resolution = LEDC_TIMER_12_BIT; // resolution of PWM duty
+	ledc_timer.freq_hz = 5000;					  // frequency of PWM signal
+	ledc_timer.speed_mode = LEDC_HS_MODE;		   // timer mode
+	ledc_timer.timer_num = LEDC_HS_TIMER;			// timer index
+	
+	// Set configuration of timer0 for high speed channels
+	ledc_timer_config(&ledc_timer);
 
+
+	for (int i =0; i < 8; i++)
+	{
+		ledc_channel[i].channel = (ledc_channel_t) i;
+		ledc_channel[i].duty = 0;
+		ledc_channel[i].gpio_num = pwmPins[i];
+		ledc_channel[i].speed_mode = LEDC_HS_MODE;
+		ledc_channel[i].hpoint = 0;
+		ledc_channel[i].timer_sel = LEDC_HS_TIMER;
+		ledc_channel_config(&ledc_channel[i]);
+	}
+
+
+	// Initialize fade service.
+	ledc_fade_func_install(0);
+
+
+	// fauxmo testing
+	ESP_LOGI(TAG, "Setting up fauxmoESP");
+	fauxmo.createServer(true);
+	fauxmo.setPort(80);
+
+	char d[12];
+
+	for (int i = 0; i < 8; i++)
+	{
+		ESP_LOGI(TAG, "Adding fauxmo device %c (%d)\n", i + 49, i + 49);
+		sprintf(d, "Starfish %c", i + 49);
+		fauxmo.addDevice(d);
+	}
+
+	fauxmo.onSetState([](unsigned char device_id, const char *device_name, bool state, unsigned char val)
+	{
+		unsigned int v = val << 4;
+		ESP_LOGI(TAG, "device_id = %d\tstate = %d\tval = %d\tv = %d\n", device_id, state, val, v);
+
+		if (state)
+		{
+			ledc_set_fade_with_time( ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel, v, pwmFadeTime);
+			ledc_fade_start( ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel, LEDC_FADE_NO_WAIT);
+		}
+		else
+		{
+			// turn off
+			ledc_set_duty(ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel, 0);
+			ledc_update_duty(ledc_channel[device_id].speed_mode, ledc_channel[device_id].channel);
+		}
+	});
+		
+
+	connectWifi();
+
+
+
+	// Create the fauxmo polling task
+	xTaskCreate(
+                    pollFauxmo,          /* Task function. */
+                    "PollFauxmo",        /* String with name of task. */
+                    10000,            /* Stack size in bytes. */
+                    NULL,             /* Parameter passed as input of the task */
+                    1,                /* Priority of the task. */
+                    NULL);            /* Task handle. */
 
 
 	/// MAIN LOOP
+	/*
 	while (1)
 	{
 		fauxmo.handle();
 
 		vTaskDelay(10 / portTICK_PERIOD_MS);
-	}
+	}*/
 }

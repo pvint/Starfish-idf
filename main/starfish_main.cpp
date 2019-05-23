@@ -314,6 +314,7 @@ void wifi_init_sta()
 	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
 	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
 	ESP_ERROR_CHECK(esp_wifi_start() );
+	ESP_ERROR_CHECK(tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, DEVICE_NAME) );
 
 	ESP_LOGI(TAG, "wifi_init_sta finished.");
 	ESP_LOGI(TAG, "connect to ap SSID:%s password:%s",
@@ -331,8 +332,20 @@ static void parseJson(cJSON *root)
 	if (cJSON_IsNumber(ch) && cJSON_IsNumber(dc))
 	{
 		ESP_LOGI(TAG, "Got ch=%d & dc=%d\n", ch->valueint, dc->valueint);
-		ledc_set_duty(LEDC_HS_MODE, (ledc_channel_t)ch->valueint, dc->valueint);
-		ledc_update_duty(LEDC_HS_MODE,(ledc_channel_t)ch->valueint);
+		// ch = -1 means all channels
+		if (ch->valueint == -1)
+		{
+			for (int i = 0; i < 8; i++)
+			{
+				ledc_set_duty(LEDC_HS_MODE, (ledc_channel_t) i, dc->valueint);
+				ledc_update_duty(LEDC_HS_MODE,(ledc_channel_t) i);
+			}
+		}
+		else
+		{
+			ledc_set_duty(LEDC_HS_MODE, (ledc_channel_t)ch->valueint, dc->valueint);
+			ledc_update_duty(LEDC_HS_MODE,(ledc_channel_t)ch->valueint);
+		}
 		//setPWM(ch->valueint, dc->valueint, 0);
 	}
 }

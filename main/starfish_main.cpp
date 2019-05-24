@@ -1,11 +1,3 @@
-/* WiFi station Example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -18,6 +10,7 @@
 #include "Arduino.h"
 #include "fauxmoESP.h"
 #include "driver/ledc.h"
+#include "starfish.h"
 
 #include "esp_bt.h"
 #include "esp_bt_main.h"
@@ -120,6 +113,8 @@ static long data_num = 0;
 static const esp_spp_sec_t sec_mask = ESP_SPP_SEC_AUTHENTICATE;
 static const esp_spp_role_t role_slave = ESP_SPP_ROLE_SLAVE;
 
+uint32_t spp_handle;
+
 static void esp_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
 {
     switch (event) {
@@ -171,6 +166,7 @@ static void esp_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
                  param->data_ind.len, param->data_ind.handle);
         esp_log_buffer_hex("",param->data_ind.data,param->data_ind.len);
 
+	spp_handle = param->data_ind.handle; // save for use in spp_send
         char *rcv = (char *)calloc(param->data_ind.len + 1, 1);
         memcpy(rcv, param->data_ind.data, param->data_ind.len);
         ESP_LOGI(SPP_TAG,"%s\n", rcv);
@@ -323,30 +319,35 @@ void wifi_init_sta()
 
 static void parseJson(cJSON *root)
 {
+	// channel and duty cycle
 	const cJSON *ch = NULL;
 	const cJSON *dc = NULL;
+	// query channel
+	const cJSON *q = NULL;
+
 
 	ch = cJSON_GetObjectItemCaseSensitive(root, "ch");
 	dc = cJSON_GetObjectItemCaseSensitive(root, "dc");
+	q = cJSON_GetObjectItemCaseSensitive(root, "q");
+
+	if (cJSON_IsNumber(q))
+	{
+		// send value for the requested channel
+		char j[20];
+		int d = (int) ledc_get_duty(LEDC_HS_MODE,(ledc_channel_t) q->valueint);
+		sprintf(j, "{\"ch\":%d,\"dc\":%d}\r\n", q->valueint, d);
+		ESP_LOGI(TAG, "Received query for channel %d. Sending: %s", q->valueint, j);
+		esp_spp_write(spp_handle, strlen(j), (uint8_t*)j);
+
+		return;
+	}
+
 
 	if (cJSON_IsNumber(ch) && cJSON_IsNumber(dc))
 	{
 		ESP_LOGI(TAG, "Got ch=%d & dc=%d\n", ch->valueint, dc->valueint);
 		// ch = -1 means all channels
-		if (ch->valueint == -1)
-		{
-			for (int i = 0; i < 8; i++)
-			{
-				ledc_set_duty(LEDC_HS_MODE, (ledc_channel_t) i, dc->valueint);
-				ledc_update_duty(LEDC_HS_MODE,(ledc_channel_t) i);
-			}
-		}
-		else
-		{
-			ledc_set_duty(LEDC_HS_MODE, (ledc_channel_t)ch->valueint, dc->valueint);
-			ledc_update_duty(LEDC_HS_MODE,(ledc_channel_t)ch->valueint);
-		}
-		//setPWM(ch->valueint, dc->valueint, 0);
+		setLeds(ch->valueint, dc->valueint);
 	}
 }
 
@@ -389,6 +390,27 @@ void connectWifi()
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	ESP_LOGI(TAG, "Enabling fauxmo");
 	fauxmo.enable(true);
+
+}
+
+void setLeds(int ch, int val)
+{
+	if ( ch == -1 )
+	{
+		for ( int i = 0; i < 8; i++ )
+		{
+			ledc_set_duty(LEDC_HS_MODE, (ledc_channel_t) i, val);
+			ledc_update_duty(LEDC_HS_MODE,(ledc_channel_t) i);
+
+		}
+	}
+	else
+	{
+			ledc_set_duty(LEDC_HS_MODE, (ledc_channel_t) ch, val);
+			ledc_update_duty(LEDC_HS_MODE,(ledc_channel_t) ch);
+
+			ledc_update_duty(ledc_channel[ch].speed_mode, ledc_channel[ch].channel);
+	}
 
 }
 
@@ -502,7 +524,7 @@ extern "C" void app_main()
 
 	for (int i = 0; i < 8; i++)
 	{
-		ESP_LOGI(TAG, "Adding fauxmo device %c (%d)\n", i + 49, i + 49);
+		ESP_LOGI(TAG, "Adding fauxmo device %c (%d)", i + 49, i + 49);
 		sprintf(d, "Starfish %c", i + 49);
 		fauxmo.addDevice(d);
 	}

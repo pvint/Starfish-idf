@@ -1,9 +1,5 @@
-# WiFi station example
-
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
-
-
-## How to use example
+# Starfish - Control PWM outputs via Bluetooth or WiFi on a Vintlabs ESP32 module (or other ESP32 device)
+See https://github.com/pvint/Starfish-Android for the Android App
 
 ### Configure the project
 
@@ -29,69 +25,55 @@ See the Getting Started Guide for full steps to configure and use ESP-IDF to bui
 
 ## Example Output
 
-There is the console output for station connects to ap successfully:
+Here is the console output when the station connects to AP successfully:
 ```
-I (727) wifi station: ESP_WIFI_MODE_STA
-I (727) wifi: wifi driver task: 3ffc0c68, prio:23, stack:3584, core=0
-I (727) wifi: wifi firmware version: 19b3110
-I (727) wifi: config NVS flash: enabled
-I (727) wifi: config nano formating: disabled
-I (737) system_api: Base MAC address is not set, read default base MAC address from BLK0 of EFUSE
-I (747) system_api: Base MAC address is not set, read default base MAC address from BLK0 of EFUSE
-I (777) wifi: Init dynamic tx buffer num: 32
-I (777) wifi: Init data frame dynamic rx buffer num: 32
-I (777) wifi: Init management frame dynamic rx buffer num: 32
-I (777) wifi: Init static rx buffer size: 1600
-I (787) wifi: Init static rx buffer num: 10
-I (787) wifi: Init dynamic rx buffer num: 32
-I (907) phy: phy_version: 3960, 5211945, Jul 18 2018, 10:40:07, 0, 0
-I (907) wifi: mode : sta (30:ae:a4:80:45:68)
-I (907) wifi station: wifi_init_sta finished.
-I (907) wifi station: connect to ap SSID:myssid password:mypassword
-I (1027) wifi: n:6 0, o:1 0, ap:255 255, sta:6 0, prof:1
-I (2017) wifi: state: init -> auth (b0)
-I (2017) wifi: state: auth -> assoc (0)
-I (2027) wifi: state: assoc -> run (10)
-I (2067) wifi: connected with myssid, channel 6
-I (2067) wifi: pm start, type: 1
+I (699) cpu_start: Pro cpu start user code
+I (47) cpu_start: Starting scheduler on PRO CPU.
+I (0) cpu_start: Starting scheduler on APP CPU.
+I (113) BTDM_INIT: BT controller compile version [d4658dd]
+I (113) system_api: Base MAC address is not set, read default base MAC address from BLK0 of EFUSE
+I (213) phy: phy_version: 4100, 6fa5e27, Jan 25 2019, 17:02:06, 0, 0
+I (813) STARFISH_SPP: ESP_SPP_INIT_EVT
+I (833) STARFISH_SPP: ESP_SPP_START_EVT
+I (833) starfish: Setting up fauxmoESP
+I (833) starfish: Adding fauxmo device 1 (49)
+I (843) starfish: Adding fauxmo device 2 (50)
+I (843) starfish: Adding fauxmo device 3 (51)
+I (853) starfish: Adding fauxmo device 4 (52)
+I (853) starfish: Adding fauxmo device 5 (53)
+I (863) starfish: Adding fauxmo device 6 (54)
+I (863) starfish: Adding fauxmo device 7 (55)
+I (873) starfish: Adding fauxmo device 8 (56)
+I (873) starfish: Connecting to WiFi (VintLabs)...
+I (883) wifi: wifi driver task: 3ffdfa34, prio:23, stack:3584, core=0
+I (883) wifi: wifi firmware version: 955b7af
+I (893) wifi: config NVS flash: enabled
+I (893) wifi: config nano formating: disabled
+I (903) system_api: Base MAC address is not set, read default base MAC address from BLK0 of EFUSE
+I (903) system_api: Base MAC address is not set, read default base MAC address from BLK0 of EFUSE
+I (943) wifi: Init dynamic tx buffer num: 32
+I (943) wifi: Init data frame dynamic rx buffer num: 32
+I (943) wifi: Init management frame dynamic rx buffer num: 32
+I (943) wifi: Init management short buffer num: 32
+I (943) wifi: Init static rx buffer size: 1600
+I (953) wifi: Init static rx buffer num: 10
+I (953) wifi: Init dynamic rx buffer num: 32
+I (973) wifi: mode : sta (cc:50:e3:be:97:10)
+[D][WiFiGeneric.cpp:342] _eventCallback(): Event: 0 - WIFI_READY
+[D][WiFiGeneric.cpp:342] _eventCallback(): Event: 2 - STA_START
+I (1113) wifi: new:<11,0>, old:<1,0>, ap:<255,255>, sta:<11,0>, prof:1
+I (2093) wifi: state: init -> auth (b0)
+I (2103) wifi: state: auth -> assoc (0)
+I (2113) wifi: state: assoc -> run (10)
+I (3143) wifi: connected with VintLabs, channel 11, bssid = 44:d9:e7:8f:45:41
+I (3203) wifi: pm start, type: 1
 
-I (3227) event: sta ip: 172.20.10.7, mask: 255.255.255.240, gw: 172.20.10.1
-I (3227) wifi station: got ip:172.20.10.7
+[D][WiFiGeneric.cpp:342] _eventCallback(): Event: 4 - STA_CONNECTED
+I (5903) event: sta ip: 172.16.50.121, mask: 255.255.254.0, gw: 172.16.50.1
+[D][WiFiGeneric.cpp:342] _eventCallback(): Event: 7 - STA_GOT_IP
+[D][WiFiGeneric.cpp:385] _eventCallback(): STA IP: 172.16.50.121, MASK: 255.255.254.0, GW: 172.16.50.1
+I (7103) starfish: Enabling fauxmo
+I (7103) starfish: ******************** Task
+
 ```
 
-There is the console output for station connects to ap failed:
-```
-I (728) wifi station: ESP_WIFI_MODE_STA
-I (728) wifi: wifi driver task: 3ffc0c68, prio:23, stack:3584, core=0
-I (728) wifi: wifi firmware version: 19b3110
-I (728) wifi: config NVS flash: enabled
-I (738) wifi: config nano formating: disabled
-I (738) system_api: Base MAC address is not set, read default base MAC address from BLK0 of EFUSE
-I (748) system_api: Base MAC address is not set, read default base MAC address from BLK0 of EFUSE
-I (778) wifi: Init dynamic tx buffer num: 32
-I (778) wifi: Init data frame dynamic rx buffer num: 32
-I (778) wifi: Init management frame dynamic rx buffer num: 32
-I (788) wifi: Init static rx buffer size: 1600
-I (788) wifi: Init static rx buffer num: 10
-I (788) wifi: Init dynamic rx buffer num: 32
-I (908) phy: phy_version: 3960, 5211945, Jul 18 2018, 10:40:07, 0, 0
-I (908) wifi: mode : sta (30:ae:a4:80:45:68)
-I (908) wifi station: wifi_init_sta finished.
-I (918) wifi station: connect to ap SSID:myssid password:mypassword
-I (3328) wifi station: retry to connect to the AP
-I (3328) wifi station: connect to the AP fail
-
-I (5738) wifi station: retry to connect to the AP
-I (5738) wifi station: connect to the AP fail
-
-I (8148) wifi station: retry to connect to the AP
-I (8148) wifi station: connect to the AP fail
-
-I (10558) wifi station: retry to connect to the AP
-I (10558) wifi station: connect to the AP fail
-
-I (12968) wifi station: retry to connect to the AP
-I (12968) wifi station: connect to the AP fail
-
-I (15378) wifi station: connect to the AP fail
-```

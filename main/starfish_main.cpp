@@ -417,6 +417,9 @@ void setLeds(int ch, int val)
 extern "C" void app_main()
 {
 
+	// for fauxmo debugging
+	Serial.begin(115200);
+
 	//Initialize NVS
 	esp_err_t ret = nvs_flash_init();
 	if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -532,7 +535,7 @@ extern "C" void app_main()
 	fauxmo.onSetState([](unsigned char device_id, const char *device_name, bool state, unsigned char val)
 	{
 		unsigned int v = val << 4;
-		ESP_LOGI(TAG, "device_id = %d\tstate = %d\tval = %d\tv = %d\n", device_id, state, val, v);
+		ESP_LOGI(TAG, "fauxmo device_id = %d\tstate = %d\tval = %d\tv = %d\n", device_id, state, val, v);
 
 		if (state)
 		{

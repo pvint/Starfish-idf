@@ -53,6 +53,7 @@ THE SOFTWARE.
 #define DEBUG_FAUXMO_VERBOSE_UDP    false
 #endif
 
+
 #include <Arduino.h>
 
 #if defined(ESP8266)

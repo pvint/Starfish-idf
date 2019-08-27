@@ -23,6 +23,19 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
+//#include <driver/adc.h>
+//#include "esp_adc_cal.h"
+#include "SSD1306Wire.h"  
+#include <math.h>
+#include "MS5xxx.h"
+#define MS5607_ADDRESS 0x77
+
+MS5xxx pressureSensor(&Wire);
+
+
+// Set the reference pressure to the current pressure to get relative altitude changes
+double pressure, temperature, p_ref, t_ref, altitude;
+
 
 /* The examples use WiFi configuration that you can set via 'make menuconfig'.
 
@@ -45,7 +58,7 @@ static const char *SPP_TAG = "starfish-SPP";
 
 #define SPP_TAG "STARFISH_SPP"
 #define SPP_SERVER_NAME "SPP_SERVER"
-#define DEVICE_NAME "Starfish"
+#define DEVICE_NAME "Resolute Red Lights"
 static void parseJson(cJSON *root);
 
 
@@ -81,6 +94,8 @@ bool wifiConnected = false;
 bool hasCredentials = false;
 bool connStatusChanged = false;
 
+#define ADC_SAMPLE_INTERVAL 2000
+
 fauxmoESP fauxmo;
 
 // VintLabs Module PWM GPIO Assignments
@@ -103,6 +118,40 @@ int ledValue[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 byte resolution = 12;
 byte ledDelay = 1;
 int pwmFadeTime = 2000;
+
+float meanPressure = 0;
+
+// default device names
+char deviceName[8][20];
+
+//#define DEFAULT_VREF    1100 
+//static esp_adc_cal_characteristics_t *adc_chars;
+//static const adc_channel_t adc_channel = ADC_CHANNEL_0; // ADC_CHANNEL_6;     //GPIO34 if ADC1, GPIO14 if ADC2
+//static const adc_atten_t adc_atten = ADC_ATTEN_DB_0;
+//static const adc_unit_t adc_unit = ADC_UNIT_1;
+SSD1306Wire  display(0x3c, 22, 23);
+
+void scan1(){
+Serial.println("Scanning I2C Addresses Channel 1");
+uint8_t cnt=0;
+for(uint8_t i=0;i<128;i++){
+  Wire.beginTransmission(i);
+  uint8_t ec=Wire.endTransmission(true);
+  if(ec==0){
+    if(i<16)Serial.print('0');
+    Serial.print(i,HEX);
+    cnt++;
+  }
+  else Serial.print("..");
+  Serial.print(' ');
+  if ((i&0x0f)==0x0f)Serial.println();
+  }
+Serial.print("Scan Completed, ");
+Serial.print(cnt);
+Serial.println(" I2C Devices found.");
+
+}
+
 
 // Bluetooth
 static const esp_spp_mode_t esp_spp_mode = ESP_SPP_MODE_CB;
@@ -324,18 +373,25 @@ static void parseJson(cJSON *root)
 	const cJSON *dc = NULL;
 	// query channel
 	const cJSON *q = NULL;
+	// channel id and name
+	const cJSON *cn = NULL;
+	const cJSON *cName = NULL;
 
 
 	ch = cJSON_GetObjectItemCaseSensitive(root, "ch");
 	dc = cJSON_GetObjectItemCaseSensitive(root, "dc");
 	q = cJSON_GetObjectItemCaseSensitive(root, "q");
+	// cn is channel name for renaming device
+	cn = cJSON_GetObjectItemCaseSensitive(root, "cn");
+	cName = cJSON_GetObjectItemCaseSensitive(root, "cn");
 
 	if (cJSON_IsNumber(q))
 	{
 		// send value for the requested channel
-		char j[20];
+		char j[40];
+		char n[20];
 		int d = (int) ledc_get_duty(LEDC_HS_MODE,(ledc_channel_t) q->valueint);
-		sprintf(j, "{\"ch\":%d,\"dc\":%d}\r\n", q->valueint, d);
+		sprintf(j, "{\"ch\":%d,\"dc\":%d,\"cn\",\"%s\"}\r\n", q->valueint, d, deviceName[q->valueint]);
 		ESP_LOGI(TAG, "Received query for channel %d. Sending: %s", q->valueint, j);
 		esp_spp_write(spp_handle, strlen(j), (uint8_t*)j);
 
@@ -349,6 +405,116 @@ static void parseJson(cJSON *root)
 		// ch = -1 means all channels
 		setLeds(ch->valueint, dc->valueint);
 	}
+
+	if (cJSON_IsNumber(cn) && cJSON_IsString(cName))
+	{
+		ESP_LOGI(TAG, "Got cn=%d & name=%s\n", ch->valueint, dc->valuestring);
+	}
+}
+
+void pollADC( void *parameter)
+{
+	ESP_LOGI(TAG, "**** pollADC task");
+
+	while (1)
+	{
+		// display gets corrupted randomly, reset it randomly
+		
+		if (rand() < (RAND_MAX / 20))
+		{
+			    display.init();
+
+			            display.flipScreenVertically();
+				            display.setFont(ArialMT_Plain_24);
+
+					            display.setTextAlignment(TEXT_ALIGN_LEFT);
+
+			ESP_LOGI(TAG, "Reset display");
+		}
+		
+
+		double v = 0;
+		for ( int i = 0; i < 32; i++ )
+		{
+			v += analogRead(36);
+		}
+		v /= 32;
+
+		double vret = 7.83 * (-0.000000000000016 * pow(v,4) + 0.000000000118171 * pow(v,3)- 0.000000301211691 * pow(v,2)+ 0.001109019271794 * v+ 0.034143524634089);
+		// hack for when 12v supply is disconnected
+		if (vret < 2.5)
+			vret = 0.0;
+
+		char j[16];
+		snprintf(j, 12, "Bat: %.1fV", vret);
+
+		// also get barometric pressure
+		
+		pressureSensor.ReadProm();
+		pressureSensor.Readout();
+		temperature = pressureSensor.GetTemp() / 100.0f;
+		pressure = pressureSensor.GetPres() / 1000.0f + 0.8; // adding a bit - it seems to consistantly low
+		unsigned int calcCRC = pressureSensor.Calc_CRC4();
+		unsigned int readCRC = pressureSensor.Read_CRC4();
+		if ( calcCRC == readCRC && ( pressure > 0 ) && (temperature > -100) )
+		{
+			ESP_LOGI( TAG,"------"); //%s Pres: %.1f  Temp: %.1f  %d %d", j, pressure, temperature, calcCRC, readCRC);
+
+			// The display gets corrupted sometimes - hoping this might help
+			//vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+			// Determine pressure trend. If first sample set mean to current value
+			// Use 3 hours as the period for the approx rolling average
+			int n = 3600 * 3 / (ADC_SAMPLE_INTERVAL / 1000);
+
+			char tendency = '-';
+			float delta = 0.1;
+
+			// We get spurious readings on occasion - discard it of it's out of range
+			if ( (pressure > 90.0) && (pressure < 110))
+			{
+				if ( meanPressure == 0.0 )
+					meanPressure = pressure * (float) n;
+				else
+				{
+					meanPressure -= meanPressure / (float) n;
+					meanPressure += pressure;
+				}
+
+				if ( (meanPressure / (float) n) - pressure > delta)
+				tendency = '\\';
+
+				if ( (meanPressure / (float) n) - pressure < -delta)
+					tendency = '/';
+			}
+			ESP_LOGI(TAG, "Interval: %d  Mean: %f %c", ADC_SAMPLE_INTERVAL, meanPressure / (float) n, tendency);
+
+			display.clear();
+			display.setTextAlignment(TEXT_ALIGN_LEFT);
+			display.setFont(ArialMT_Plain_16);
+			display.drawString(1, 0, j);
+			ESP_LOGI(TAG,"%s",j);
+			snprintf( j, 12, "%.1f kPa %c", pressure, tendency );
+			display.drawString(1, 20, j);
+			ESP_LOGI(TAG,"%s",j);
+// HACK for fucked up sensor
+temperature = temperature * .63;
+			snprintf( j, 10, "%.1fC", temperature );
+			display.drawString(1, 40, j);
+			ESP_LOGI(TAG,"%s",j);
+
+			display.display();
+		}
+		else
+		{
+			//ESP_LOGI(TAG,"--");
+			//display.drawString(1, 21, "--");
+			//display.drawString(1, 42, "--");
+		}
+		vTaskDelay(ADC_SAMPLE_INTERVAL / portTICK_PERIOD_MS);
+	}
+
+	vTaskDelete( NULL );
 }
 
 void pollFauxmo( void * parameter )
@@ -427,7 +593,24 @@ extern "C" void app_main()
 	  ret = nvs_flash_init();
 	}
 	ESP_ERROR_CHECK(ret);
-	
+
+
+
+	//Configure ADC
+	/*
+	if (adc_unit == ADC_UNIT_1) {
+	adc1_config_width(ADC_WIDTH_BIT_12);
+	adc1_config_channel_atten((adc1_channel_t)adc_channel, adc_atten);
+	} else {
+	adc2_config_channel_atten((adc2_channel_t)adc_channel, adc_atten);
+	}
+
+	//Characterize ADC
+	adc_chars = (esp_adc_cal_characteristics_t *) calloc(1, sizeof(esp_adc_cal_characteristics_t));
+	esp_adc_cal_value_t val_type = esp_adc_cal_characterize(adc_unit, adc_atten, ADC_WIDTH_BIT_12, DEFAULT_VREF, adc_chars);
+	//print_char_val_type(val_type);
+	*/
+
 	//ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
 	//wifi_init_sta();
 
@@ -486,12 +669,45 @@ extern "C" void app_main()
     esp_bt_pin_code_t pin_code;
     esp_bt_gap_set_pin(pin_type, 0, pin_code);
 	
-	// Init arduino crap
 	initArduino();
-	//Serial.begin(115200);
-	//Serial.print("==========================");
-	//pinMode(12, OUTPUT);
-	//digitalWrite(12, HIGH);
+	Wire.setClock(100000);
+	Wire.begin(22,23);
+
+	scan1();
+	
+	display.init();
+
+	display.flipScreenVertically();
+	display.setFont(ArialMT_Plain_24);
+
+	display.setTextAlignment(TEXT_ALIGN_LEFT);
+	display.drawString(1, 12, "VintLabs\nStarfish");
+
+	// set up the initialization progress bar
+	int progress = 0;
+	int progressY = 1;
+	display.drawProgressBar(0, progressY, 120, 10, progress);
+
+	display.display();
+
+	// Set up MS5607 Pressure sensor
+	pressureSensor.setI2Caddr(MS5607_ADDRESS);
+	ESP_LOGI(TAG, "-=-=-=-=-=-=: %d", pressureSensor.connect());
+	vTaskDelay(20 / portTICK_PERIOD_MS);
+	ESP_LOGI(TAG, "ZZZZZZ");
+
+	  
+	pressureSensor.ReadProm();
+	pressureSensor.Readout();
+	p_ref =  pressureSensor.GetPres();
+	t_ref = pressureSensor.GetTemp() / 100.0f;
+
+	ESP_LOGI(TAG, "==========   %f    %f ", p_ref, t_ref);
+
+	progress += 10;
+	display.drawProgressBar(0, progressY, 120, 10, progress);
+	display.display();
+
 	
 	ledc_timer.duty_resolution = LEDC_TIMER_12_BIT; // resolution of PWM duty
 	ledc_timer.freq_hz = 5000;					  // frequency of PWM signal
@@ -517,11 +733,19 @@ extern "C" void app_main()
 	// Initialize fade service.
 	ledc_fade_func_install(0);
 
+	progress += 10;
+	display.drawProgressBar(0, progressY, 120, 10, progress);
+	display.display();
+
 
 	// fauxmo testing
 	ESP_LOGI(TAG, "Setting up fauxmoESP");
 	fauxmo.createServer(true);
 	fauxmo.setPort(80);
+
+	progress += 10;
+	display.drawProgressBar(0, progressY, 120, 10, progress);
+	display.display();
 
 	char d[12];
 
@@ -529,7 +753,14 @@ extern "C" void app_main()
 	{
 		ESP_LOGI(TAG, "Adding fauxmo device %c (%d)", i + 49, i + 49);
 		sprintf(d, "Starfish %c", i + 49);
+		// TODO - get these from flash
+		strcpy( deviceName[i], d);
 		fauxmo.addDevice(d);
+
+		progress += 5;
+		display.drawProgressBar(0, progressY, 120, 10, progress);
+		display.display();
+
 	}
 
 	fauxmo.onSetState([](unsigned char device_id, const char *device_name, bool state, unsigned char val)
@@ -550,8 +781,16 @@ extern "C" void app_main()
 		}
 	});
 		
+	progress += 10;
+	display.drawProgressBar(0, progressY, 120, 10, progress);
+	display.display();
+
 
 	connectWifi();
+
+	progress = 100;
+	display.drawProgressBar(0, progressY, 120, 10, progress);
+	display.display();
 
 
 
@@ -564,6 +803,14 @@ extern "C" void app_main()
                     1,                /* Priority of the task. */
                     NULL);            /* Task handle. */
 
+//	xTaskCreate( pollADC,
+	xTaskCreatePinnedToCore( pollADC,
+		"PollADC",
+		8192,
+		NULL,
+		0,
+		NULL,
+		1);
 
 	/// MAIN LOOP
 	/*

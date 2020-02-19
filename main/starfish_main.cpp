@@ -58,7 +58,7 @@ static const char *SPP_TAG = "starfish-SPP";
 
 #define SPP_TAG "STARFISH_SPP"
 #define SPP_SERVER_NAME "SPP_SERVER"
-#define DEVICE_NAME "Resolute Red Lights"
+#define DEVICE_NAME "Starfish"
 static void parseJson(cJSON *root);
 
 
@@ -171,10 +171,14 @@ static void esp_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
 	{
         ESP_LOGI(SPP_TAG, "ESP_SPP_INIT_EVT");
         // Get MAC
-        uint8_t mac[6];
-        esp_efuse_mac_get_default(mac);
+	const uint8_t *mac = esp_bt_dev_get_address();
+        char *n = (char*) malloc(strlen(DEVICE_NAME) + 6);
+        sprintf(n, "%s %02hhX", DEVICE_NAME, (int)mac[5]);
+        ESP_LOGI(SPP_TAG, "Init Bluetooth - Device name: %s", n);
+
         char *d = (char*) malloc(strlen(DEVICE_NAME) + 4);
         sprintf(d, "%s %02hhX", DEVICE_NAME, mac[5]);
+	ESP_LOGI(SPP_TAG, "BT Device name: %s", d);
         esp_bt_dev_set_device_name(d);
         free(d);
 
@@ -371,6 +375,9 @@ static void parseJson(cJSON *root)
 	// channel and duty cycle
 	const cJSON *ch = NULL;
 	const cJSON *dc = NULL;
+	// amount to adjust value by
+	const cJSON *adj = NULL;
+
 	// query channel
 	const cJSON *q = NULL;
 	// channel id and name
@@ -380,6 +387,7 @@ static void parseJson(cJSON *root)
 
 	ch = cJSON_GetObjectItemCaseSensitive(root, "ch");
 	dc = cJSON_GetObjectItemCaseSensitive(root, "dc");
+	adj = cJSON_GetObjectItemCaseSensitive(root, "adj");
 	q = cJSON_GetObjectItemCaseSensitive(root, "q");
 	// cn is channel name for renaming device
 	cn = cJSON_GetObjectItemCaseSensitive(root, "cn");
@@ -403,7 +411,17 @@ static void parseJson(cJSON *root)
 	{
 		ESP_LOGI(TAG, "Got ch=%d & dc=%d\n", ch->valueint, dc->valueint);
 		// ch = -1 means all channels
-		setLeds(ch->valueint, dc->valueint);
+		// dc = -999 means pulse that channel
+		if (dc->valueint == -999)
+			pulseLeds(ch->valueint);
+		else
+			setLeds(ch->valueint, dc->valueint);
+	}
+
+	if (cJSON_IsNumber(adj) && cJSON_IsNumber(adj))
+	{
+		ESP_LOGI(TAG, "Got ch=%d & adj=%d\n", ch->valueint, adj->valueint);
+		adjustLeds(ch->valueint, adj->valueint);
 	}
 
 	if (cJSON_IsNumber(cn) && cJSON_IsString(cName))
@@ -419,7 +437,7 @@ void pollADC( void *parameter)
 	while (1)
 	{
 		// display gets corrupted randomly, reset it randomly
-		
+		/*
 		if (rand() < (RAND_MAX / 20))
 		{
 			    display.init();
@@ -431,7 +449,7 @@ void pollADC( void *parameter)
 
 			ESP_LOGI(TAG, "Reset display");
 		}
-		
+		*/
 
 		double v = 0;
 		for ( int i = 0; i < 32; i++ )
@@ -559,8 +577,27 @@ void connectWifi()
 
 }
 
+// use Rec 709 to adjust duty cycle value to something our eyes agree with
+int humanizeValue(int val)
+{
+	
+	// assuming value is 0 - 2^resolution (ie: 0-4095 for 12 bit resolution)
+	float v = (float) val / 4096.0;
+
+	if ( v < 0.081 )
+		v = v / 4.5;
+	else
+		v = pow((( v + 0.099) / 1.099), (1.0 / 0.45));
+
+	ESP_LOGI(TAG, "Humanized %f (%f)  to %f (%f)\n", (float) val, (float) val / 4096.0, v * 4096, v);
+
+	return (int) (v * 4096.0);
+}
+
 void setLeds(int ch, int val)
 {
+	val = humanizeValue(val);
+
 	if ( ch == -1 )
 	{
 		for ( int i = 0; i < 8; i++ )
@@ -578,6 +615,104 @@ void setLeds(int ch, int val)
 			ledc_update_duty(ledc_channel[ch].speed_mode, ledc_channel[ch].channel);
 	}
 
+}
+
+void adjustLeds(int ch, int val)
+{
+	int x;
+	if ( ch == -1 )
+	{
+		for ( int i = 0; i < 8; i++ )
+		{
+			x = ledc_get_duty(LEDC_HS_MODE, (ledc_channel_t) i);
+			if ((x + val) > 4095)
+			{
+				x = 4095 - val;
+			}
+			if ((x + val) < 0)
+			{
+				x = 0 + val;
+			}
+
+			ledc_set_duty(LEDC_HS_MODE, (ledc_channel_t) i, x + val);
+			ledc_update_duty(LEDC_HS_MODE,(ledc_channel_t) i);
+
+			ESP_LOGI(TAG, "Adjusted ch %d from %d to %d", i, x, x + val);
+		}
+	}
+	else
+	{
+			x = ledc_get_duty(LEDC_HS_MODE, (ledc_channel_t) ch);
+
+			if ((x + val) > 4095)
+			{
+				x = 4095;
+				val = 0;
+			}
+			if ((x + val) < 0)
+			{
+				x = 0;
+				val = 0;
+			}
+
+			ledc_set_duty(LEDC_HS_MODE, (ledc_channel_t) ch, x + val);
+			ledc_update_duty(LEDC_HS_MODE,(ledc_channel_t) ch);
+
+			ledc_update_duty(ledc_channel[ch].speed_mode, ledc_channel[ch].channel);
+			ESP_LOGI(TAG, "Adjusted ch %d from %d to %d", ch, x, x + val);
+	}
+}
+
+void pulseLeds(int ch)
+{
+	int fadeTime = 100;
+	float maxLevel = 1.5;
+	float minLevel = .1;
+
+	ESP_LOGI(TAG, "Pulse channel %d", ch);
+	int x;
+	if ( ch == -1 )
+	{
+		for ( int i = 0; i < 8; i++ )
+		{
+			x = ledc_get_duty(LEDC_HS_MODE, (ledc_channel_t) i);
+
+			if ((maxLevel * x) > 4095)
+				maxLevel = 1;
+
+			ledc_set_fade_with_time( LEDC_HS_MODE, (ledc_channel_t) i, maxLevel * x + 60, fadeTime / 5);
+                        ledc_fade_start( LEDC_HS_MODE, (ledc_channel_t) i, LEDC_FADE_WAIT_DONE);
+
+			ledc_set_fade_with_time( LEDC_HS_MODE, (ledc_channel_t) i, minLevel * x, fadeTime / 5);
+                        ledc_fade_start( LEDC_HS_MODE, (ledc_channel_t) i, LEDC_FADE_WAIT_DONE);
+
+			ledc_set_fade_with_time( LEDC_HS_MODE, (ledc_channel_t) i, x, fadeTime / 5);
+			ledc_fade_start( LEDC_HS_MODE, (ledc_channel_t) i, LEDC_FADE_WAIT_DONE);
+
+		}
+		ESP_LOGI(TAG, "Done");
+	}
+	else
+	{
+		x = ledc_get_duty(LEDC_HS_MODE, (ledc_channel_t) ch);
+		
+		if ((maxLevel * x) > 4095)
+			maxLevel = 1;
+
+		for (int n = 0; n < 3; n++)
+		{
+			ledc_set_fade_with_time( LEDC_HS_MODE, (ledc_channel_t) ch, maxLevel * x, fadeTime);
+			ledc_fade_start( LEDC_HS_MODE, (ledc_channel_t) ch, LEDC_FADE_WAIT_DONE);
+
+			ledc_set_fade_with_time( LEDC_HS_MODE, (ledc_channel_t) ch, minLevel * x, fadeTime);
+			ledc_fade_start( LEDC_HS_MODE, (ledc_channel_t) ch, LEDC_FADE_WAIT_DONE);
+		}
+
+		ledc_set_fade_with_time( LEDC_HS_MODE, (ledc_channel_t) ch, x, fadeTime);
+		ledc_fade_start( LEDC_HS_MODE, (ledc_channel_t) ch, LEDC_FADE_WAIT_DONE);
+
+		ESP_LOGI(TAG, "Done");
+	}
 }
 
 extern "C" void app_main()
@@ -618,6 +753,9 @@ extern "C" void app_main()
 
         //    ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_BLE));
 
+	//uint8_t mac[6];
+	//esp_efuse_mac_get_default(mac);
+
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
 
     if ((ret = esp_bt_controller_init(&bt_cfg)) != ESP_OK) {
@@ -654,6 +792,13 @@ extern "C" void app_main()
         ESP_LOGE(SPP_TAG, "%s spp init failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
+
+	const uint8_t *mac = esp_bt_dev_get_address();
+        char *n = (char*) malloc(strlen(DEVICE_NAME) + 6);
+        sprintf(n, "%s %02hhX", DEVICE_NAME, (int)mac[5]);
+        ESP_LOGI(SPP_TAG, "Init Bluetooth - Device name: %s", n);
+
+
 #if (CONFIG_BT_SSP_ENABLED == true)
     /* Set default parameters for Secure Simple Pairing */
     esp_bt_sp_param_t param_type = ESP_BT_SP_IOCAP_MODE;
@@ -752,7 +897,7 @@ extern "C" void app_main()
 	for (int i = 0; i < 8; i++)
 	{
 		ESP_LOGI(TAG, "Adding fauxmo device %c (%d)", i + 49, i + 49);
-		sprintf(d, "Starfish %c", i + 49);
+		sprintf(d, "Aardvark %c", i + 49);
 		// TODO - get these from flash
 		strcpy( deviceName[i], d);
 		fauxmo.addDevice(d);

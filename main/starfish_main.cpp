@@ -10,6 +10,7 @@
 #include "Arduino.h"
 #include "fauxmoESP.h"
 #include "driver/ledc.h"
+#include "driver/i2c.h"
 #include "starfish.h"
 
 #include "esp_bt.h"
@@ -29,6 +30,9 @@
 #include <math.h>
 #include "MS5xxx.h"
 #define MS5607_ADDRESS 0x77
+#define TC74_ADDRESS 0x4D
+
+#define USE_DISPLAY 0
 
 MS5xxx pressureSensor(&Wire);
 
@@ -93,6 +97,13 @@ WiFiServer server(8080);
 bool wifiConnected = false;
 bool hasCredentials = false;
 bool connStatusChanged = false;
+
+#define SDA_PIN GPIO_NUM_21
+#define SCL_PIN GPIO_NUM_22
+
+#define I2C_MASTER_ACK 0
+#define I2C_MASTER_NACK 1
+
 
 #define ADC_SAMPLE_INTERVAL 2000
 
@@ -399,7 +410,7 @@ static void parseJson(cJSON *root)
 		char j[40];
 		char n[20];
 		int d = (int) ledc_get_duty(LEDC_HS_MODE,(ledc_channel_t) q->valueint);
-		sprintf(j, "{\"ch\":%d,\"dc\":%d,\"cn\",\"%s\"}\r\n", q->valueint, d, deviceName[q->valueint]);
+		snprintf(j, 39, "{\"ch\":%d,\"dc\":%d,\"cn\",\"%s\"}\r\n", q->valueint, d, deviceName[q->valueint]);
 		ESP_LOGI(TAG, "Received query for channel %d. Sending: %s", q->valueint, j);
 		esp_spp_write(spp_handle, strlen(j), (uint8_t*)j);
 
@@ -465,6 +476,19 @@ void pollADC( void *parameter)
 
 		char j[16];
 		snprintf(j, 12, "Bat: %.1fV", vret);
+
+		// Get board temperature
+		Wire.beginTransmission(TC74_ADDRESS);
+		Wire.write(0x00);
+		Wire.requestFrom(TC74_ADDRESS, 1);
+		if (Wire.available())
+		{
+			int t = Wire.read();
+			char ti[32];
+			snprintf(ti, 32, "Board temp: %d C", t); 
+			ESP_LOGI(TAG, "%s", ti);
+		}
+		Wire.endTransmission();
 
 		// also get barometric pressure
 		
@@ -548,6 +572,46 @@ void pollFauxmo( void * parameter )
 	}
      	
 	vTaskDelete( NULL );
+
+}
+
+uint8_t readTC74()
+{
+	Wire.beginTransmission(TC74_ADDRESS);
+	Wire.write(0x00);
+	Wire.requestFrom(TC74_ADDRESS, 1);
+	uint8_t t = 0;
+
+                if (Wire.available())
+                {
+                        t = Wire.read();
+                        char ti[32];
+                        snprintf(ti, 32, "Board temp: %d C", t);
+                        ESP_LOGI(TAG, "%s", ti);
+                }
+		Wire.endTransmission();
+		return t;
+}
+
+void getBoardTemperature( void *parameter )
+{
+		ESP_LOGI(TAG, "Temperature task");
+                // Get board temperature
+		uint8_t t = readTC74();
+		/*
+                Wire.beginTransmission(TC74_ADDRESS);
+                Wire.write(0x00);
+                Wire.requestFrom(TC74_ADDRESS, 1);
+                if (Wire.available())
+                {
+                        int t = Wire.read();
+                        char ti[32]; 
+                        snprintf(ti, 32, "Board temp: %d C", t);
+                        ESP_LOGI(TAG, "%s", ti);
+                }
+                Wire.endTransmission();
+		*/
+		vTaskDelete( NULL );
 
 }
 
@@ -816,10 +880,35 @@ extern "C" void app_main()
 	
 	initArduino();
 	Wire.setClock(100000);
-	Wire.begin(22,23);
+	Wire.begin(21,22);
 
 	scan1();
-	
+// FIXME Temperature test
+                // Get board temperature
+		ESP_LOGI(TAG, "Getting board temperature....");
+                Wire.beginTransmission(TC74_ADDRESS);
+                Wire.write(0x00);
+                Wire.requestFrom(TC74_ADDRESS, 1);
+                if (Wire.available())
+                {
+                        int t = Wire.read();
+                        char ti[32];
+                        snprintf(ti, 32, "Board temp: %d C", t);
+                        ESP_LOGI(TAG, "%s", ti);
+                }
+                Wire.endTransmission();
+
+		ESP_LOGI(TAG, "Done");
+
+
+
+	// set up the initialization progress bar
+	int progress = 0;
+	int progressY = 1;
+
+
+	if (USE_DISPLAY)
+	{
 	display.init();
 
 	display.flipScreenVertically();
@@ -828,9 +917,6 @@ extern "C" void app_main()
 	display.setTextAlignment(TEXT_ALIGN_LEFT);
 	display.drawString(1, 12, "VintLabs\nStarfish");
 
-	// set up the initialization progress bar
-	int progress = 0;
-	int progressY = 1;
 	display.drawProgressBar(0, progressY, 120, 10, progress);
 
 	display.display();
@@ -852,7 +938,7 @@ extern "C" void app_main()
 	progress += 10;
 	display.drawProgressBar(0, progressY, 120, 10, progress);
 	display.display();
-
+	} // if USE_DISPLAY
 	
 	ledc_timer.duty_resolution = LEDC_TIMER_12_BIT; // resolution of PWM duty
 	ledc_timer.freq_hz = 5000;					  // frequency of PWM signal
@@ -878,34 +964,41 @@ extern "C" void app_main()
 	// Initialize fade service.
 	ledc_fade_func_install(0);
 
+	if(USE_DISPLAY)
+	{
 	progress += 10;
 	display.drawProgressBar(0, progressY, 120, 10, progress);
 	display.display();
-
+	}
 
 	// fauxmo testing
 	ESP_LOGI(TAG, "Setting up fauxmoESP");
 	fauxmo.createServer(true);
 	fauxmo.setPort(80);
 
+	if(USE_DISPLAY)
+	{
 	progress += 10;
 	display.drawProgressBar(0, progressY, 120, 10, progress);
 	display.display();
+	}
 
-	char d[12];
+	char d[16];
 
 	for (int i = 0; i < 8; i++)
 	{
 		ESP_LOGI(TAG, "Adding fauxmo device %c (%d)", i + 49, i + 49);
-		sprintf(d, "Aardvark %c", i + 49);
+		snprintf(d, 15, "Aardvark %c", i + 49);
 		// TODO - get these from flash
 		strcpy( deviceName[i], d);
 		fauxmo.addDevice(d);
 
+		if(USE_DISPLAY)
+		{
 		progress += 5;
 		display.drawProgressBar(0, progressY, 120, 10, progress);
 		display.display();
-
+		}
 	}
 
 	fauxmo.onSetState([](unsigned char device_id, const char *device_name, bool state, unsigned char val)
@@ -926,19 +1019,21 @@ extern "C" void app_main()
 		}
 	});
 		
+	if(USE_DISPLAY)
+	{
 	progress += 10;
 	display.drawProgressBar(0, progressY, 120, 10, progress);
 	display.display();
-
+	}
 
 	connectWifi();
 
+	if(USE_DISPLAY)
+	{
 	progress = 100;
 	display.drawProgressBar(0, progressY, 120, 10, progress);
 	display.display();
-
-
-
+	}
 	// Create the fauxmo polling task
 	xTaskCreate(
                     pollFauxmo,          /* Task function. */
@@ -946,6 +1041,14 @@ extern "C" void app_main()
                     10000,            /* Stack size in bytes. */
                     NULL,             /* Parameter passed as input of the task */
                     1,                /* Priority of the task. */
+                    NULL);            /* Task handle. */
+
+	xTaskCreate(
+                    getBoardTemperature,          /* Task function. */
+                    "getBoardTemperature",        /* String with name of task. */
+                    10000,            /* Stack size in bytes. */
+                    NULL,             /* Parameter passed as input of the task */
+                    2,                /* Priority of the task. */
                     NULL);            /* Task handle. */
 
 //	xTaskCreate( pollADC,
@@ -956,6 +1059,8 @@ extern "C" void app_main()
 		0,
 		NULL,
 		1);
+
+
 
 	/// MAIN LOOP
 	/*

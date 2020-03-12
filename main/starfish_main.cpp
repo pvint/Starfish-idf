@@ -389,6 +389,8 @@ static void parseJson(cJSON *root)
 	// amount to adjust value by
 	const cJSON *adj = NULL;
 
+	// query temperature
+	const cJSON *t = NULL;
 	// query channel
 	const cJSON *q = NULL;
 	// channel id and name
@@ -400,9 +402,25 @@ static void parseJson(cJSON *root)
 	dc = cJSON_GetObjectItemCaseSensitive(root, "dc");
 	adj = cJSON_GetObjectItemCaseSensitive(root, "adj");
 	q = cJSON_GetObjectItemCaseSensitive(root, "q");
+	// Temperature query
+	t = cJSON_GetObjectItemCaseSensitive(root, "t");
 	// cn is channel name for renaming device
 	cn = cJSON_GetObjectItemCaseSensitive(root, "cn");
 	cName = cJSON_GetObjectItemCaseSensitive(root, "cn");
+
+	if (cJSON_IsNumber(t))
+	{
+		uint8_t temp = readTC74();
+
+		ESP_LOGI(TAG, "Received query for temperature. Sending: %d", temp);
+		//char j[40];
+		char *j = (char*) malloc(sizeof(char) * 40);
+		snprintf(j, 39, "{\"t\": %d}\r\n", temp);
+		esp_spp_write(spp_handle, strlen(j), (uint8_t*)j);
+		free(j);
+
+		return;
+	}
 
 	if (cJSON_IsNumber(q))
 	{
@@ -585,9 +603,11 @@ uint8_t readTC74()
                 if (Wire.available())
                 {
                         t = Wire.read();
-                        char ti[32];
+                        //char ti[32];
+                        char *ti = (char*) malloc(sizeof(char) * 32);
                         snprintf(ti, 32, "Board temp: %d C", t);
                         ESP_LOGI(TAG, "%s", ti);
+			free(ti);
                 }
 		Wire.endTransmission();
 		return t;
@@ -598,19 +618,9 @@ void getBoardTemperature( void *parameter )
 		ESP_LOGI(TAG, "Temperature task");
                 // Get board temperature
 		uint8_t t = readTC74();
-		/*
-                Wire.beginTransmission(TC74_ADDRESS);
-                Wire.write(0x00);
-                Wire.requestFrom(TC74_ADDRESS, 1);
-                if (Wire.available())
-                {
-                        int t = Wire.read();
-                        char ti[32]; 
-                        snprintf(ti, 32, "Board temp: %d C", t);
-                        ESP_LOGI(TAG, "%s", ti);
-                }
-                Wire.endTransmission();
-		*/
+
+		vTaskDelay(ADC_SAMPLE_INTERVAL / portTICK_PERIOD_MS);
+
 		vTaskDelete( NULL );
 
 }

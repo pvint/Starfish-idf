@@ -1168,16 +1168,21 @@ void AsyncServer::begin(){
 }
 
 void AsyncServer::end(){
-    if(_pcb){
-        tcp_arg(_pcb, NULL);
-        tcp_accept(_pcb, NULL);
-        if(_in_lwip_thread){
-            tcp_close(_pcb);
-        } else {
-            _tcp_close(_pcb);
-        }
-        _pcb = NULL;
-    }
+if(_pcb){
+tcp_arg(_pcb, NULL);
+tcp_sent(_pcb, NULL);
+tcp_recv(_pcb, NULL);
+tcp_err(_pcb, NULL);
+tcp_poll(_pcb, NULL, 0);
+tcp_accept(_pcb, NULL);
+if ( tcp_close(_pcb)!=ERR_OK ) {
+//cleanup all connections?
+tcp_abort(_pcb);
+}
+//tcp_arg(_pcb, NULL);
+//tcp_accept(_pcb, NULL);
+_pcb = NULL;
+}
 }
 
 void AsyncServer::setNoDelay(bool nodelay){

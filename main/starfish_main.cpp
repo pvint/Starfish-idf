@@ -133,7 +133,10 @@ int pwmFadeTime = 2000;
 float meanPressure = 0;
 
 // default device names
+char deviceBasename[] = "Elephant";
 char deviceName[8][20];
+
+#define DEBUG_FAUXMO_VERBOSE_UDP true
 
 //#define DEFAULT_VREF    1100 
 //static esp_adc_cal_characteristics_t *adc_chars;
@@ -999,7 +1002,7 @@ extern "C" void app_main()
 	for (int i = 0; i < 8; i++)
 	{
 		ESP_LOGI(TAG, "Adding fauxmo device %c (%d)", i + 49, i + 49);
-		snprintf(d, 15, "Aardvark %c", i + 49);
+		snprintf(d, 15, "%s %c", deviceBasename, i + 49);
 		// TODO - get these from flash
 		strcpy( deviceName[i], d);
 		fauxmo.addDevice(d);

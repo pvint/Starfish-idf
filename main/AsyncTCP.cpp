@@ -539,6 +539,13 @@ int8_t AsyncClient::_close(){
             err = abort();
         }
         _pcb = NULL;
+	// debugging crash
+	if (this  == 0x00)
+	{
+		log_e("! this!!!!!");
+		return err;
+	}
+
         if(_discard_cb)
             _discard_cb(_discard_cb_arg, this);
     }

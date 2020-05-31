@@ -340,6 +340,11 @@ void fauxmoESP::_onTCPClient(AsyncClient *client) {
 	            }, 0);
 
 	            client->onDisconnect([this, i](void *s, AsyncClient *c) {
+			if(_tcpClients[i] == NULL)
+			{
+				DEBUG_MSG_FAUXMO("[FAUXMO] Error: _tcpClients[%d] is NULL!", i);
+				return;
+			}
 	                _tcpClients[i]->free();
 	                _tcpClients[i] = NULL;
 	                delete c;

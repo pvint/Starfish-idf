@@ -185,7 +185,8 @@ static void esp_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
 	const uint8_t *mac = esp_bt_dev_get_address();
         char *n = (char*) malloc(strlen(DEVICE_NAME) + 6);
         sprintf(n, "%s %02hhX", DEVICE_NAME, (int)mac[5]);
-        ESP_LOGI(SPP_TAG, "Init Bluetooth - Device name: %s", n);
+        ESP_LOGI(SPP_TAG, "Init Bluetooth - Device name: %s\t MAC: %02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX", n,(int)mac[0],(int)mac[1],(int)mac[2],(int)mac[3],(int)mac[4],(int)mac[5]);
+	free(n);
 
         char *d = (char*) malloc(strlen(DEVICE_NAME) + 4);
         sprintf(d, "%s %02hhX", DEVICE_NAME, mac[5]);

@@ -1,5 +1,11 @@
 menu "Example Configuration"
 
+    config ESP_DEVICE_NAME
+        string "WiFi SSID"
+        default "ESP"
+        help
+            Default device name (For Alexa etc.)
+
     config ESP_WIFI_SSID
         string "WiFi SSID"
         default "myssid"

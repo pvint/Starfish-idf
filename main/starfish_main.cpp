@@ -49,6 +49,7 @@ double pressure, temperature, p_ref, t_ref, altitude;
 #define EXAMPLE_ESP_WIFI_SSID	  CONFIG_ESP_WIFI_SSID
 #define EXAMPLE_ESP_WIFI_PASS	  CONFIG_ESP_WIFI_PASSWORD
 #define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
+#define deviceBasename	CONFIG_ESP_DEVICE_NAME
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -133,7 +134,7 @@ int pwmFadeTime = 2000;
 float meanPressure = 0;
 
 // default device names
-char deviceBasename[] = "Elephant";
+//char deviceBasename[] = "Elephant";
 char deviceName[8][20];
 
 #define DEBUG_FAUXMO_VERBOSE_UDP true
@@ -1001,7 +1002,7 @@ extern "C" void app_main()
 
 	for (int i = 0; i < 8; i++)
 	{
-		ESP_LOGI(TAG, "Adding fauxmo device %c (%d)", i + 49, i + 49);
+		ESP_LOGI(TAG, "Adding fauxmo device %s %c (%d)", deviceBasename, i + 49, i + 49);
 		snprintf(d, 15, "%s %c", deviceBasename, i + 49);
 		// TODO - get these from flash
 		strcpy( deviceName[i], d);

@@ -187,13 +187,13 @@ static void esp_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
         ESP_LOGI(SPP_TAG, "ESP_SPP_INIT_EVT");
         // Get MAC
 	const uint8_t *mac = esp_bt_dev_get_address();
-        char *n = (char*) malloc(strlen(DEVICE_NAME) + 6);
-        sprintf(n, "%s %02hhX", DEVICE_NAME, (int)mac[5]);
+        char *n = (char*) malloc(strlen(deviceBasename) + 1);
+        sprintf(n, "%s", deviceBasename);
         ESP_LOGI(SPP_TAG, "Init Bluetooth - Device name: %s\t MAC: %02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX", n,(int)mac[0],(int)mac[1],(int)mac[2],(int)mac[3],(int)mac[4],(int)mac[5]);
 	free(n);
 
-        char *d = (char*) malloc(strlen(DEVICE_NAME) + 4);
-        sprintf(d, "%s %02hhX", DEVICE_NAME, mac[5]);
+        char *d = (char*) malloc(strlen(deviceBasename) + 1);
+        sprintf(d, "%s", deviceBasename);
 	ESP_LOGI(SPP_TAG, "BT Device name: %s", d);
         esp_bt_dev_set_device_name(d);
         free(d);
@@ -624,7 +624,7 @@ void getBoardTemperature( void *parameter )
                 // Get board temperature
 		uint8_t t = readTC74();
 
-		vTaskDelay(ADC_SAMPLE_INTERVAL / portTICK_PERIOD_MS);
+		vTaskDelay(ADC_SAMPLE_INTERVAL * 10 / portTICK_PERIOD_MS);
 
 		vTaskDelete( NULL );
 
@@ -675,6 +675,7 @@ int humanizeValue(int val)
 
 void setLeds(int ch, int val)
 {
+	ESP_LOGI(TAG, "setLeds");
 	val = humanizeValue(val);
 
 	if ( ch == -1 )
@@ -873,8 +874,9 @@ extern "C" void app_main()
     }
 
 	const uint8_t *mac = esp_bt_dev_get_address();
-        char *n = (char*) malloc(strlen(DEVICE_NAME) + 6);
-        sprintf(n, "%s %02hhX", DEVICE_NAME, (int)mac[5]);
+        char *n = (char*) malloc(strlen(deviceBasename) + 1);
+        //sprintf(n, "%s %02hhX", DEVICE_NAME, (int)mac[5]);
+        sprintf(n, "%s", deviceBasename);
         ESP_LOGI(SPP_TAG, "Init Bluetooth - Device name: %s", n);
 
 

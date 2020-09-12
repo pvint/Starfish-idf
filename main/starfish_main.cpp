@@ -28,7 +28,7 @@
 #include "Syslog.h"
 
 // Syslog server connection info
-#define SYSLOG_SERVER "172.16.51.159"
+//#define SYSLOG_SERVER "172.16.51.159"
 #define SYSLOG_PORT 514
 
 // This device info
@@ -40,7 +40,7 @@ int status = WL_IDLE_STATUS;
 WiFiUDP udpClient;
 
 // Create a new syslog instance with LOG_KERN facility
-Syslog syslog(udpClient, SYSLOG_SERVER, SYSLOG_PORT, CONFIG_ESP_DEVICE_NAME, APP_NAME, LOG_INFO);
+Syslog syslog(udpClient, CONFIG_ESP_SYSLOG_SERVER, SYSLOG_PORT, CONFIG_ESP_DEVICE_NAME, APP_NAME, LOG_INFO);
 
 
 //#include <driver/adc.h>
@@ -188,6 +188,12 @@ Serial.println(" I2C Devices found.");
 
 }
 
+// Handle copying STDOUT to syslog
+int syslog_vprintf(const char *fmt, va_list args)
+{
+	syslog.logf(LOG_INFO, fmt, args);	
+	return vprintf(fmt, args);
+}
 
 // Bluetooth
 static const esp_spp_mode_t esp_spp_mode = ESP_SPP_MODE_CB;
@@ -683,6 +689,12 @@ void connectWifi()
 	ESP_LOGI(TAG, "local ip address: %d.%d.%d.%d", local_adr[0],local_adr[1],local_adr[2],local_adr[3]);
 	snprintf(ip_address, 16, "%d.%d.%d.%d", local_adr[0],local_adr[1],local_adr[2],local_adr[3]);
 
+        #ifdef CONFIG_ESP_REDIRECT_STDOUT_SYSLOG
+		ESP_LOGI(TAG,"Copying all STDOUT to syslog.");
+		esp_log_set_vprintf(&syslog_vprintf);
+        #endif
+
+
 	ESP_LOGI(TAG, "Enabling fauxmo");
 	fauxmo.enable(true);
 
@@ -1086,7 +1098,7 @@ extern "C" void app_main()
 
 
 	syslog.logf(LOG_INFO, "IP Address: %s", ip_address);
-
+	
 	// Create the fauxmo polling task
 	xTaskCreate(
                     pollFauxmo,          /* Task function. */

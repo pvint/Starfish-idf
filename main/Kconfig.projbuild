@@ -1,7 +1,7 @@
 menu "Example Configuration"
 
     config ESP_DEVICE_NAME
-        string "WiFi SSID"
+        string "Device Name"
         default "ESP"
         help
             Default device name (For Alexa etc.)
@@ -23,4 +23,14 @@ menu "Example Configuration"
         default 5
         help
             Set the Maximum retry to avoid station reconnecting to the AP unlimited when the AP is really inexistent.
+
+    config ESP_SYSLOG_SERVER
+        string "Syslog Server IP"
+        default ""
+        help
+            Set the remote syslog server IP address.
+
+    config ESP_REDIRECT_STDOUT_SYSLOG
+        bool "Redirect all output to syslog"
+        default 0
 endmenu

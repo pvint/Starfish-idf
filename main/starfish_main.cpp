@@ -24,6 +24,25 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
+#include <WiFiUdp.h>
+#include "Syslog.h"
+
+// Syslog server connection info
+#define SYSLOG_SERVER "172.16.51.159"
+#define SYSLOG_PORT 514
+
+// This device info
+#define APP_NAME "Starfish"
+
+int status = WL_IDLE_STATUS;
+
+// A UDP instance to let us send and receive packets over UDP
+WiFiUDP udpClient;
+
+// Create a new syslog instance with LOG_KERN facility
+Syslog syslog(udpClient, SYSLOG_SERVER, SYSLOG_PORT, CONFIG_ESP_DEVICE_NAME, APP_NAME, LOG_INFO);
+
+
 //#include <driver/adc.h>
 //#include "esp_adc_cal.h"
 #include "SSD1306Wire.h"  
@@ -50,6 +69,7 @@ double pressure, temperature, p_ref, t_ref, altitude;
 #define EXAMPLE_ESP_WIFI_PASS	  CONFIG_ESP_WIFI_PASSWORD
 #define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
 #define deviceBasename	CONFIG_ESP_DEVICE_NAME
+
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -92,6 +112,7 @@ ledc_channel_config_t ledc_channel[8];
 
 char ssid[32];
 char pwd[32];
+char ip_address[16];
 
 int wifiTimeout = 20;
 WiFiServer server(8080);
@@ -334,7 +355,9 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
 		esp_wifi_connect();
 		break;
 	case SYSTEM_EVENT_STA_GOT_IP:
-		ESP_LOGI(TAG, "got ip:%s",
+		snprintf(ip_address, 16, ip4addr_ntoa(&event->event_info.got_ip.ip_info.ip));
+
+		ESP_LOGE(TAG, "got ip:%s",
 				 ip4addr_ntoa(&event->event_info.got_ip.ip_info.ip));
 		s_retry_num = 0;
 		xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
@@ -624,6 +647,11 @@ void getBoardTemperature( void *parameter )
                 // Get board temperature
 		uint8_t t = readTC74();
 
+		char ti[32];
+		snprintf(ti, 32, "Board temp: %d C", t);
+
+		syslog.log(LOG_INFO, ti);
+
 		vTaskDelay(ADC_SAMPLE_INTERVAL * 10 / portTICK_PERIOD_MS);
 
 		vTaskDelete( NULL );
@@ -651,6 +679,10 @@ void connectWifi()
 			}
 	}
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
+	IPAddress local_adr = WiFi.localIP();
+	ESP_LOGI(TAG, "local ip address: %d.%d.%d.%d", local_adr[0],local_adr[1],local_adr[2],local_adr[3]);
+	snprintf(ip_address, 16, "%d.%d.%d.%d", local_adr[0],local_adr[1],local_adr[2],local_adr[3]);
+
 	ESP_LOGI(TAG, "Enabling fauxmo");
 	fauxmo.enable(true);
 
@@ -1051,6 +1083,10 @@ extern "C" void app_main()
 	display.drawProgressBar(0, progressY, 120, 10, progress);
 	display.display();
 	}
+
+
+	syslog.logf(LOG_INFO, "IP Address: %s", ip_address);
+
 	// Create the fauxmo polling task
 	xTaskCreate(
                     pollFauxmo,          /* Task function. */

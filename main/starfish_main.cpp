@@ -127,7 +127,7 @@ bool connStatusChanged = false;
 #define I2C_MASTER_NACK 1
 
 
-#define ADC_SAMPLE_INTERVAL 2000
+#define ADC_SAMPLE_INTERVAL 10000
 
 fauxmoESP fauxmo;
 

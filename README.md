@@ -1,6 +1,8 @@
 # Starfish - Control PWM outputs via Bluetooth or WiFi on a Vintlabs ESP32 module (or other ESP32 device)
 See https://github.com/pvint/Starfish-Android for the Android App
 
+_Note: I've been using this for a couple years, and it started off as a Proff of Concept really, but I keep adding to it (sometimes late at night etc), and it has gotten to be a mess. I'm beginning refactoring now, so it should be a bit cleaner in the near future._
+
 ### Configure the project
 
 ```
@@ -9,7 +11,8 @@ make menuconfig
 
 * Set serial port under Serial Flasher Options.
 
-* Set WiFi SSID and WiFi Password and Maximum retry under Example Configuration Options.
+* Set Device Name, WiFi SSID and WiFi Password and Maximum retry under Example Configuration Options.
+* Optionally set a syslog server also under Example Configuration
 
 ### Build and Flash
 

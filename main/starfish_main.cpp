@@ -79,7 +79,6 @@ static EventGroupHandle_t s_wifi_event_group;
 const int WIFI_CONNECTED_BIT = BIT0;
 
 static const char *TAG = "starfish";
-static const char *SPP_TAG = "starfish-SPP";
 
 #define SPP_TAG "STARFISH_SPP"
 #define SPP_SERVER_NAME "SPP_SERVER"
@@ -198,9 +197,6 @@ int syslog_vprintf(const char *fmt, va_list args)
 // Bluetooth
 static const esp_spp_mode_t esp_spp_mode = ESP_SPP_MODE_CB;
 
-static struct timeval time_new, time_old;
-static long data_num = 0;
-
 static const esp_spp_sec_t sec_mask = ESP_SPP_SEC_AUTHENTICATE;
 static const esp_spp_role_t role_slave = ESP_SPP_ROLE_SLAVE;
 
@@ -289,7 +285,6 @@ static void esp_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
     case ESP_SPP_SRV_OPEN_EVT:
         {
 	ESP_LOGI(SPP_TAG, "ESP_SPP_SRV_OPEN_EVT");
-        gettimeofday(&time_old, NULL);
         break;
 	}
     default:
@@ -460,7 +455,6 @@ static void parseJson(cJSON *root)
 	{
 		// send value for the requested channel
 		char j[40];
-		char n[20];
 		int d = (int) ledc_get_duty(LEDC_HS_MODE,(ledc_channel_t) q->valueint);
 		snprintf(j, 39, "{\"ch\":%d,\"dc\":%d,\"cn\",\"%s\"}\r\n", q->valueint, d, deviceName[q->valueint]);
 		ESP_LOGI(TAG, "Received query for channel %d. Sending: %s", q->valueint, j);
@@ -917,7 +911,6 @@ extern "C" void app_main()
         return;
     }
 
-	const uint8_t *mac = esp_bt_dev_get_address();
         char *n = (char*) malloc(strlen(deviceBasename) + 1);
         //sprintf(n, "%s %02hhX", DEVICE_NAME, (int)mac[5]);
         sprintf(n, "%s", deviceBasename);

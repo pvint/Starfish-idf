@@ -707,6 +707,11 @@ void AsyncClient::stop() {
 }
 
 bool AsyncClient::free(){
+    if (!this)
+    {
+	ESP_LOGE("AsyncTCP", "this == NULL! Line 710 AsyncTCP.cpp");
+	return false;
+    }
     if(!_pcb)
         return true;
     if(_pcb->state == 0 || _pcb->state > 4)

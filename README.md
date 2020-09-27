@@ -1,7 +1,11 @@
 # Starfish - Control PWM outputs via Bluetooth or WiFi on a Vintlabs ESP32 module (or other ESP32 device)
 See https://github.com/pvint/Starfish-Android for the Android App
 
-_Note: I've been using this for a couple years, and it started off as a Proff of Concept really, but I keep adding to it (sometimes late at night etc), and it has gotten to be a mess. I'm beginning refactoring now, so it should be a bit cleaner in the near future._
+_Note: I've been using this for a couple years, and it started off as a Proof of Concept really, but I keep adding to it (sometimes late at night etc), and it has gotten to be a mess. I'm beginning refactoring now, so it should be a bit cleaner in the near future._
+
+### Requirements
+arduino-esp32 1.0.4
+esp-idf 3.2
 
 ### Configure the project
 
@@ -24,7 +28,7 @@ make -j4 flash monitor
 
 (To exit the serial monitor, type ``Ctrl-]``.)
 
-See the Getting Started Guide for full steps to configure and use ESP-IDF to build projects.
+See the Getting Started Guide (https://docs.espressif.com/projects/esp-idf/en/release-v3.2/get-started/index.html) for full steps to configure and use ESP-IDF to build projects.
 
 ## Example Output
 

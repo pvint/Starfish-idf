@@ -417,7 +417,7 @@ void getBoardTemperature( void *parameter )
 
 		syslog.log(LOG_INFO, ti);
 
-		vTaskDelay(ADC_SAMPLE_INTERVAL * 10 / portTICK_PERIOD_MS);
+		vTaskDelay(ADC_SAMPLE_INTERVAL / portTICK_PERIOD_MS);
 
 		vTaskDelete( NULL );
 

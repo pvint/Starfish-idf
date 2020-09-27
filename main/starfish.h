@@ -77,7 +77,7 @@
 #define I2C_MASTER_ACK 0
 #define I2C_MASTER_NACK 1
 
-#define ADC_SAMPLE_INTERVAL 10000
+#define ADC_SAMPLE_INTERVAL 60000
 
 // VintLabs Module PWM GPIO Assignments
 #define PWM0 12

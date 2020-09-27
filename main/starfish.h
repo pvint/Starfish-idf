@@ -89,8 +89,6 @@
 #define PWM6 18
 #define PWM7 19
 
-#define DEBUG_FAUXMO_VERBOSE_UDP true
-
 void scan1();
 static void parseJson(cJSON *root);
 void setLeds(int ch, int val);

@@ -54,26 +54,34 @@ char deviceName[8][20];
 
 SSD1306Wire  display(0x3c, 22, 23);
 
-void scan1(){
-Serial.println("Scanning I2C Addresses Channel 1");
-uint8_t cnt=0;
-for(uint8_t i=0;i<128;i++){
-  Wire.beginTransmission(i);
-  uint8_t ec=Wire.endTransmission(true);
-  if(ec==0){
-    if(i<16)Serial.print('0');
-    Serial.print(i,HEX);
-    cnt++;
-  }
-  else Serial.print("..");
-  Serial.print(' ');
-  if ((i&0x0f)==0x0f)Serial.println();
-  }
-Serial.print("Scan Completed, ");
-Serial.print(cnt);
-Serial.println(" I2C Devices found.");
-
-}
+void scan1()
+{
+	Serial.println("Scanning I2C Addresses Channel 1");
+	uint8_t cnt=0;
+	for(uint8_t i=0;i<128;i++)
+	{
+		Wire.beginTransmission(i);
+		uint8_t ec=Wire.endTransmission(true);
+		if(ec==0)
+		{
+			if(i<16)
+				Serial.print('0');
+			Serial.print(i,HEX);
+			cnt++;
+		}
+		else 
+			Serial.print("..");
+		
+		Serial.print(' ');
+		
+		if ((i&0x0f)==0x0f)
+			Serial.println();
+  	}
+	
+	Serial.print("Scan Completed, ");
+	Serial.print(cnt);
+	Serial.println(" I2C Devices found.");
+}  // scan1
 
 // Handle copying STDOUT to syslog
 int syslog_vprintf(const char *fmt, va_list args)
@@ -434,7 +442,7 @@ void pollFauxmo( void * parameter )
 {
 
 
-        ESP_LOGI(TAG,"******************** Task");
+        ESP_LOGI(TAG, "pollFauxmo Task");
 
 	while (1)
 	{
@@ -674,67 +682,43 @@ extern "C" void app_main()
 
 
 
-	//Configure ADC
-	/*
-	if (adc_unit == ADC_UNIT_1) {
-	adc1_config_width(ADC_WIDTH_BIT_12);
-	adc1_config_channel_atten((adc1_channel_t)adc_channel, adc_atten);
-	} else {
-	adc2_config_channel_atten((adc2_channel_t)adc_channel, adc_atten);
+	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+
+	if ((ret = esp_bt_controller_init(&bt_cfg)) != ESP_OK) {
+		ESP_LOGE(SPP_TAG, "%s initialize controller failed: %s\n", __func__, esp_err_to_name(ret));
+		return;
 	}
 
-	//Characterize ADC
-	adc_chars = (esp_adc_cal_characteristics_t *) calloc(1, sizeof(esp_adc_cal_characteristics_t));
-	esp_adc_cal_value_t val_type = esp_adc_cal_characterize(adc_unit, adc_atten, ADC_WIDTH_BIT_12, DEFAULT_VREF, adc_chars);
-	//print_char_val_type(val_type);
-	*/
-
-	//ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-	//wifi_init_sta();
-
-	// init Bluetooth
-
-        //    ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_BLE));
-
-	//uint8_t mac[6];
-	//esp_efuse_mac_get_default(mac);
-
-    esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-
-    if ((ret = esp_bt_controller_init(&bt_cfg)) != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s initialize controller failed: %s\n", __func__, esp_err_to_name(ret));
-        return;
-    }
-
-    if ((ret = esp_bt_controller_enable(ESP_BT_MODE_CLASSIC_BT)) != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s enable controller failed: %s\n", __func__, esp_err_to_name(ret));
-        return;
-    }
+	if ((ret = esp_bt_controller_enable(ESP_BT_MODE_CLASSIC_BT)) != ESP_OK) {
+		ESP_LOGE(SPP_TAG, "%s enable controller failed: %s\n", __func__, esp_err_to_name(ret));
+		return;
+	}
 
 
-    if ((ret = esp_bluedroid_init()) != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s initialize bluedroid failed: %s\n", __func__, esp_err_to_name(ret));
-        return;
-    }
+	if ((ret = esp_bluedroid_init()) != ESP_OK) {
+		ESP_LOGE(SPP_TAG, "%s initialize bluedroid failed: %s\n", __func__, esp_err_to_name(ret));
+		return;
+	}
 
-    if ((ret = esp_bluedroid_enable()) != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s enable bluedroid failed: %s\n", __func__, esp_err_to_name(ret));
-        return;
-    }
-    if ((ret = esp_bt_gap_register_callback(esp_bt_gap_cb)) != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s gap register failed: %s\n", __func__, esp_err_to_name(ret));
-        return;
-    }
+	if ((ret = esp_bluedroid_enable()) != ESP_OK) {
+		ESP_LOGE(SPP_TAG, "%s enable bluedroid failed: %s\n", __func__, esp_err_to_name(ret));
+		return;
+	}
 
-    if ((ret = esp_spp_register_callback(esp_spp_cb)) != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s spp register failed: %s\n", __func__, esp_err_to_name(ret));
-        return;
-    }
+	if ((ret = esp_bt_gap_register_callback(esp_bt_gap_cb)) != ESP_OK) {
+		ESP_LOGE(SPP_TAG, "%s gap register failed: %s\n", __func__, esp_err_to_name(ret));
+		return;
+	}
 
-    if ((ret = esp_spp_init(esp_spp_mode)) != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s spp init failed: %s\n", __func__, esp_err_to_name(ret));
-        return;
-    }
+	if ((ret = esp_spp_register_callback(esp_spp_cb)) != ESP_OK) {
+		ESP_LOGE(SPP_TAG, "%s spp register failed: %s\n", __func__, esp_err_to_name(ret));
+		return;
+	}
+
+	if ((ret = esp_spp_init(esp_spp_mode)) != ESP_OK) {
+		ESP_LOGE(SPP_TAG, "%s spp init failed: %s\n", __func__, esp_err_to_name(ret));
+		return;
+	}
 
         char *n = (char*) malloc(strlen(deviceBasename) + 1);
         //sprintf(n, "%s %02hhX", DEVICE_NAME, (int)mac[5]);
@@ -743,41 +727,41 @@ extern "C" void app_main()
 
 
 #if (CONFIG_BT_SSP_ENABLED == true)
-    /* Set default parameters for Secure Simple Pairing */
-    esp_bt_sp_param_t param_type = ESP_BT_SP_IOCAP_MODE;
-    esp_bt_io_cap_t iocap = ESP_BT_IO_CAP_IO;
-    esp_bt_gap_set_security_param(param_type, &iocap, sizeof(uint8_t));
+	/* Set default parameters for Secure Simple Pairing */
+	esp_bt_sp_param_t param_type = ESP_BT_SP_IOCAP_MODE;
+	esp_bt_io_cap_t iocap = ESP_BT_IO_CAP_IO;
+	esp_bt_gap_set_security_param(param_type, &iocap, sizeof(uint8_t));
 #endif
 
-    /*
-     * Set default parameters for Legacy Pairing
-     * Use variable pin, input pin code when pairing
-     */
-    esp_bt_pin_type_t pin_type = ESP_BT_PIN_TYPE_VARIABLE;
-    esp_bt_pin_code_t pin_code;
-    esp_bt_gap_set_pin(pin_type, 0, pin_code);
+	/*
+	* Set default parameters for Legacy Pairing
+	* Use variable pin, input pin code when pairing
+	*/
+	esp_bt_pin_type_t pin_type = ESP_BT_PIN_TYPE_VARIABLE;
+	esp_bt_pin_code_t pin_code;
+	esp_bt_gap_set_pin(pin_type, 0, pin_code);
 	
 	initArduino();
 	Wire.setClock(100000);
 	Wire.begin(21,22);
 
 	scan1();
-// FIXME Temperature test
-                // Get board temperature
-		ESP_LOGI(TAG, "Getting board temperature....");
-                Wire.beginTransmission(TC74_ADDRESS);
-                Wire.write(0x00);
-                Wire.requestFrom(TC74_ADDRESS, 1);
-                if (Wire.available())
-                {
-                        int t = Wire.read();
-                        char ti[32];
-                        snprintf(ti, 32, "Board temp: %d C", t);
-                        ESP_LOGI(TAG, "%s", ti);
-                }
-                Wire.endTransmission();
 
-		ESP_LOGI(TAG, "Done");
+	// Get board temperature
+	ESP_LOGI(TAG, "Getting board temperature....");
+	Wire.beginTransmission(TC74_ADDRESS);
+	Wire.write(0x00);
+	Wire.requestFrom(TC74_ADDRESS, 1);
+	if (Wire.available())
+	{
+		int t = Wire.read();
+		char ti[32];
+		snprintf(ti, 32, "Board temp: %d C", t);
+		ESP_LOGI(TAG, "%s", ti);
+	}
+	Wire.endTransmission();
+
+	ESP_LOGI(TAG, "Done");
 
 
 
@@ -788,22 +772,22 @@ extern "C" void app_main()
 
 	if (USE_DISPLAY)
 	{
-	display.init();
+		display.init();
 
-	display.flipScreenVertically();
-	display.setFont(ArialMT_Plain_24);
+		display.flipScreenVertically();
+		display.setFont(ArialMT_Plain_24);
 
-	display.setTextAlignment(TEXT_ALIGN_LEFT);
-	display.drawString(1, 12, "VintLabs\nStarfish");
+		display.setTextAlignment(TEXT_ALIGN_LEFT);
+		display.drawString(1, 12, "VintLabs\nStarfish");
 
-	display.drawProgressBar(0, progressY, 120, 10, progress);
+		display.drawProgressBar(0, progressY, 120, 10, progress);
 
-	display.display();
+		display.display();
 
 
-	progress += 10;
-	display.drawProgressBar(0, progressY, 120, 10, progress);
-	display.display();
+		progress += 10;
+		display.drawProgressBar(0, progressY, 120, 10, progress);
+		display.display();
 	} // if USE_DISPLAY
 	
 	ledc_timer.duty_resolution = LEDC_TIMER_12_BIT; // resolution of PWM duty
@@ -832,9 +816,9 @@ extern "C" void app_main()
 
 	if(USE_DISPLAY)
 	{
-	progress += 10;
-	display.drawProgressBar(0, progressY, 120, 10, progress);
-	display.display();
+		progress += 10;
+		display.drawProgressBar(0, progressY, 120, 10, progress);
+		display.display();
 	}
 
 	// fauxmo testing
@@ -844,9 +828,9 @@ extern "C" void app_main()
 
 	if(USE_DISPLAY)
 	{
-	progress += 10;
-	display.drawProgressBar(0, progressY, 120, 10, progress);
-	display.display();
+		progress += 10;
+		display.drawProgressBar(0, progressY, 120, 10, progress);
+		display.display();
 	}
 
 	char d[16];
@@ -887,18 +871,18 @@ extern "C" void app_main()
 		
 	if(USE_DISPLAY)
 	{
-	progress += 10;
-	display.drawProgressBar(0, progressY, 120, 10, progress);
-	display.display();
+		progress += 10;
+		display.drawProgressBar(0, progressY, 120, 10, progress);
+		display.display();
 	}
 
 	connectWifi();
 
 	if(USE_DISPLAY)
 	{
-	progress = 100;
-	display.drawProgressBar(0, progressY, 120, 10, progress);
-	display.display();
+		progress = 100;
+		display.drawProgressBar(0, progressY, 120, 10, progress);
+		display.display();
 	}
 
 

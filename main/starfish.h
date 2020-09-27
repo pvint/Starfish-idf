@@ -91,7 +91,7 @@
 
 #define DEBUG_FAUXMO_VERBOSE_UDP true
 
-
+void scan1();
 static void parseJson(cJSON *root);
 void setLeds(int ch, int val);
 void adjustLeds(int ch, int val);

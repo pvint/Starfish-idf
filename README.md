@@ -2,8 +2,8 @@
 See https://github.com/pvint/Starfish-Android for the Android App
 
 ### Requirements
-arduino-esp32 1.0.4
-esp-idf 3.2
+* arduino-esp32 1.0.4
+* esp-idf 3.2
 
 ### Configure the project
 

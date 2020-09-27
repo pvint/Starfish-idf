@@ -46,11 +46,11 @@ THE SOFTWARE.
 #endif
 
 #ifndef DEBUG_FAUXMO_VERBOSE_TCP
-#define DEBUG_FAUXMO_VERBOSE_TCP    true
+#define DEBUG_FAUXMO_VERBOSE_TCP    false
 #endif
 
 #ifndef DEBUG_FAUXMO_VERBOSE_UDP
-#define DEBUG_FAUXMO_VERBOSE_UDP    true
+#define DEBUG_FAUXMO_VERBOSE_UDP    false
 #endif
 
 #include <Arduino.h>
@@ -69,7 +69,6 @@ THE SOFTWARE.
 #include <functional>
 #include <vector>
 #include "templates.h"
-
 
 typedef std::function<void(unsigned char, const char *, bool, unsigned char)> TSetStateCallback;
 

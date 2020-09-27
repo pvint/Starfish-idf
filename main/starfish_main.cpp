@@ -361,6 +361,7 @@ void pollADC( void *parameter)
 			char ti[32];
 			snprintf(ti, 32, "Board temp: %d C", t); 
 			ESP_LOGI(TAG, "%s", ti);
+			syslog.log(LOG_INFO, ti);
 		}
 		Wire.endTransmission();
 
@@ -406,22 +407,6 @@ uint8_t readTC74()
 		return t;
 }
 
-void getBoardTemperature( void *parameter )
-{
-		ESP_LOGI(TAG, "Temperature task");
-                // Get board temperature
-		uint8_t t = readTC74();
-
-		char ti[32];
-		snprintf(ti, 32, "Board temp: %d C", t);
-
-		syslog.log(LOG_INFO, ti);
-
-		vTaskDelay(ADC_SAMPLE_INTERVAL / portTICK_PERIOD_MS);
-
-		vTaskDelete( NULL );
-
-}
 
 void connectWifi()
 {
@@ -829,15 +814,7 @@ extern "C" void app_main()
                     1,                /* Priority of the task. */
                     NULL);            /* Task handle. */
 
-	xTaskCreate(
-                    getBoardTemperature,          /* Task function. */
-                    "getBoardTemperature",        /* String with name of task. */
-                    10000,            /* Stack size in bytes. */
-                    NULL,             /* Parameter passed as input of the task */
-                    2,                /* Priority of the task. */
-                    NULL);            /* Task handle. */
 
-//	xTaskCreate( pollADC,
 	xTaskCreatePinnedToCore( pollADC,
 		"PollADC",
 		8192,

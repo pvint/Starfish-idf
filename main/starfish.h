@@ -18,7 +18,7 @@
 #include "esp_bt_device.h"
 #include "esp_spp_api.h"
 
-#include "cJSON.h"
+#include <cJSON.h>
 
 #include "lwip/err.h"
 #include "lwip/sys.h"

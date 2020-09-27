@@ -2,7 +2,7 @@
 
 FAUXMO ESP
 
-Copyright (C) 2016-2018 by Xose Pérez <xose dot perez at gmail dot com>
+Copyright (C) 2016-2020 by Xose Pérez <xose dot perez at gmail dot com>
 
 The MIT License (MIT)
 
@@ -80,7 +80,7 @@ void fauxmoESP::_handleUDP() {
 
         String request = (const char *) data;
         if (request.indexOf("M-SEARCH") >= 0) {
-            if(request.indexOf("upnp:rootdevice") > 0 || request.indexOf("device:basic:1") > 0) {
+            if ((request.indexOf("ssdp:discover") > 0) || (request.indexOf("upnp:rootdevice") > 0) || (request.indexOf("device:basic:1") > 0)) {
                 _sendUDPResponse();
             }
         }

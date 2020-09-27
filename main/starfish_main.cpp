@@ -1,38 +1,4 @@
-#include <string.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/event_groups.h"
-#include "esp_system.h"
-#include "esp_wifi.h"
-#include "esp_event_loop.h"
-#include "esp_log.h"
-#include "nvs_flash.h"
-#include "Arduino.h"
-#include "fauxmoESP.h"
-#include "driver/ledc.h"
-#include "driver/i2c.h"
 #include "starfish.h"
-
-#include "esp_bt.h"
-#include "esp_bt_main.h"
-#include "esp_gap_bt_api.h"
-#include "esp_bt_device.h"
-#include "esp_spp_api.h"
-
-#include "cJSON.h"
-
-#include "lwip/err.h"
-#include "lwip/sys.h"
-
-#include <WiFiUdp.h>
-#include "Syslog.h"
-
-// Syslog server connection info
-//#define SYSLOG_SERVER "172.16.51.159"
-#define SYSLOG_PORT 514
-
-// This device info
-#define APP_NAME "Starfish"
 
 int status = WL_IDLE_STATUS;
 
@@ -41,34 +7,6 @@ WiFiUDP udpClient;
 
 // Create a new syslog instance with LOG_KERN facility
 Syslog syslog(udpClient, CONFIG_ESP_SYSLOG_SERVER, SYSLOG_PORT, CONFIG_ESP_DEVICE_NAME, APP_NAME, LOG_INFO);
-
-
-//#include <driver/adc.h>
-//#include "esp_adc_cal.h"
-#include "SSD1306Wire.h"  
-#include <math.h>
-#include "MS5xxx.h"
-#define MS5607_ADDRESS 0x77
-#define TC74_ADDRESS 0x4D
-
-#define USE_DISPLAY 0
-
-MS5xxx pressureSensor(&Wire);
-
-
-// Set the reference pressure to the current pressure to get relative altitude changes
-double pressure, temperature, p_ref, t_ref, altitude;
-
-
-/* The examples use WiFi configuration that you can set via 'make menuconfig'.
-
-   If you'd rather not, just change the below entries to strings with
-   the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
-*/
-#define EXAMPLE_ESP_WIFI_SSID	  CONFIG_ESP_WIFI_SSID
-#define EXAMPLE_ESP_WIFI_PASS	  CONFIG_ESP_WIFI_PASSWORD
-#define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
-#define deviceBasename	CONFIG_ESP_DEVICE_NAME
 
 
 /* FreeRTOS event group to signal when we are connected*/
@@ -80,31 +18,7 @@ const int WIFI_CONNECTED_BIT = BIT0;
 
 static const char *TAG = "starfish";
 
-#define SPP_TAG "STARFISH_SPP"
-#define SPP_SERVER_NAME "SPP_SERVER"
-#define DEVICE_NAME "Starfish"
-static void parseJson(cJSON *root);
-
-
 static int s_retry_num = 0;
-
-#define LEDC_HS_TIMER		  LEDC_TIMER_0
-#define LEDC_HS_MODE		   LEDC_HIGH_SPEED_MODE
-#define LEDC_HS_CH0_GPIO	   (18)
-#define LEDC_HS_CH0_CHANNEL	LEDC_CHANNEL_0
-#define LEDC_HS_CH1_GPIO	   (19)
-#define LEDC_HS_CH1_CHANNEL	LEDC_CHANNEL_1
-
-#define LEDC_LS_TIMER		  LEDC_TIMER_1
-#define LEDC_LS_MODE		   LEDC_LOW_SPEED_MODE
-#define LEDC_LS_CH2_GPIO	   (4)
-#define LEDC_LS_CH2_CHANNEL	LEDC_CHANNEL_2
-#define LEDC_LS_CH3_GPIO	   (5)
-#define LEDC_LS_CH3_CHANNEL	LEDC_CHANNEL_3
-
-#define LEDC_TEST_CH_NUM	   (4)
-#define LEDC_TEST_DUTY		 (4000)
-#define LEDC_TEST_FADE_TIME	(3000)
 
 ledc_timer_config_t ledc_timer;
 ledc_channel_config_t ledc_channel[8];
@@ -119,26 +33,7 @@ bool wifiConnected = false;
 bool hasCredentials = false;
 bool connStatusChanged = false;
 
-#define SDA_PIN GPIO_NUM_21
-#define SCL_PIN GPIO_NUM_22
-
-#define I2C_MASTER_ACK 0
-#define I2C_MASTER_NACK 1
-
-
-#define ADC_SAMPLE_INTERVAL 10000
-
 fauxmoESP fauxmo;
-
-// VintLabs Module PWM GPIO Assignments
-#define PWM0 12
-#define PWM1 13
-#define PWM2 14
-#define PWM3 15
-#define PWM4 16
-#define PWM5 17
-#define PWM6 18
-#define PWM7 19
 
 // Array to hold pin assignments
 int pwmPins[] = { PWM0, PWM1, PWM2, PWM3, PWM4, PWM5, PWM6, PWM7 };
@@ -151,19 +46,12 @@ byte resolution = 12;
 byte ledDelay = 1;
 int pwmFadeTime = 2000;
 
-float meanPressure = 0;
-
 // default device names
 //char deviceBasename[] = "Elephant";
 char deviceName[8][20];
 
 #define DEBUG_FAUXMO_VERBOSE_UDP true
 
-//#define DEFAULT_VREF    1100 
-//static esp_adc_cal_characteristics_t *adc_chars;
-//static const adc_channel_t adc_channel = ADC_CHANNEL_0; // ADC_CHANNEL_6;     //GPIO34 if ADC1, GPIO14 if ADC2
-//static const adc_atten_t adc_atten = ADC_ATTEN_DB_0;
-//static const adc_unit_t adc_unit = ADC_UNIT_1;
 SSD1306Wire  display(0x3c, 22, 23);
 
 void scan1(){
@@ -536,69 +424,6 @@ void pollADC( void *parameter)
 		}
 		Wire.endTransmission();
 
-		// also get barometric pressure
-		
-		pressureSensor.ReadProm();
-		pressureSensor.Readout();
-		temperature = pressureSensor.GetTemp() / 100.0f;
-		pressure = pressureSensor.GetPres() / 1000.0f + 0.8; // adding a bit - it seems to consistantly low
-		unsigned int calcCRC = pressureSensor.Calc_CRC4();
-		unsigned int readCRC = pressureSensor.Read_CRC4();
-		if ( calcCRC == readCRC && ( pressure > 0 ) && (temperature > -100) )
-		{
-			ESP_LOGI( TAG,"------"); //%s Pres: %.1f  Temp: %.1f  %d %d", j, pressure, temperature, calcCRC, readCRC);
-
-			// The display gets corrupted sometimes - hoping this might help
-			//vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-			// Determine pressure trend. If first sample set mean to current value
-			// Use 3 hours as the period for the approx rolling average
-			int n = 3600 * 3 / (ADC_SAMPLE_INTERVAL / 1000);
-
-			char tendency = '-';
-			float delta = 0.1;
-
-			// We get spurious readings on occasion - discard it of it's out of range
-			if ( (pressure > 90.0) && (pressure < 110))
-			{
-				if ( meanPressure == 0.0 )
-					meanPressure = pressure * (float) n;
-				else
-				{
-					meanPressure -= meanPressure / (float) n;
-					meanPressure += pressure;
-				}
-
-				if ( (meanPressure / (float) n) - pressure > delta)
-				tendency = '\\';
-
-				if ( (meanPressure / (float) n) - pressure < -delta)
-					tendency = '/';
-			}
-			ESP_LOGI(TAG, "Interval: %d  Mean: %f %c", ADC_SAMPLE_INTERVAL, meanPressure / (float) n, tendency);
-
-			display.clear();
-			display.setTextAlignment(TEXT_ALIGN_LEFT);
-			display.setFont(ArialMT_Plain_16);
-			display.drawString(1, 0, j);
-			ESP_LOGI(TAG,"%s",j);
-			snprintf( j, 12, "%.1f kPa %c", pressure, tendency );
-			display.drawString(1, 20, j);
-			ESP_LOGI(TAG,"%s",j);
-// HACK for fucked up sensor
-temperature = temperature * .63;
-			snprintf( j, 10, "%.1fC", temperature );
-			display.drawString(1, 40, j);
-			ESP_LOGI(TAG,"%s",j);
-
-			display.display();
-		}
-		else
-		{
-			//ESP_LOGI(TAG,"--");
-			//display.drawString(1, 21, "--");
-			//display.drawString(1, 42, "--");
-		}
 		vTaskDelay(ADC_SAMPLE_INTERVAL / portTICK_PERIOD_MS);
 	}
 
@@ -975,19 +800,6 @@ extern "C" void app_main()
 
 	display.display();
 
-	// Set up MS5607 Pressure sensor
-	pressureSensor.setI2Caddr(MS5607_ADDRESS);
-	ESP_LOGI(TAG, "-=-=-=-=-=-=: %d", pressureSensor.connect());
-	vTaskDelay(20 / portTICK_PERIOD_MS);
-	ESP_LOGI(TAG, "ZZZZZZ");
-
-	  
-	pressureSensor.ReadProm();
-	pressureSensor.Readout();
-	p_ref =  pressureSensor.GetPres();
-	t_ref = pressureSensor.GetTemp() / 100.0f;
-
-	ESP_LOGI(TAG, "==========   %f    %f ", p_ref, t_ref);
 
 	progress += 10;
 	display.drawProgressBar(0, progressY, 120, 10, progress);

@@ -1,6 +1,7 @@
 # Starfish - Control PWM outputs via Bluetooth or WiFi on a Vintlabs ESP32 module (or other ESP32 device)
 See https://github.com/pvint/Starfish-Android for the Android App
 
+### Requirements
 arduino-esp32 1.0.4
 esp-idf 3.2
 

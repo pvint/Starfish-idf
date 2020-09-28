@@ -16,6 +16,8 @@ make menuconfig
 * Set Device Name, WiFi SSID and WiFi Password and Maximum retry under Example Configuration Options.
 * Optionally set a syslog server also under Example Configuration
 
+## Note: As of 2020-09-28 you can now store credentials for two WiFi access points in NVS (Flash). When an AP is set in "Example Configuration", it will be stored as first priority, and the one previously set to first priority will be pushed to second priority. 
+ 
 ### Build and Flash
 
 Build the project and flash it to the board, then run monitor tool to view serial output:

@@ -7,6 +7,9 @@
 #include "esp_event_loop.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "nvs.h"
+#include "esp_system.h"
+
 #include "Arduino.h"
 #include "fauxmoESP.h"
 #include "driver/ledc.h"
@@ -40,6 +43,8 @@
 #define TC74_ADDRESS 0x4D
 
 #define USE_DISPLAY 0
+
+#define MAX_APS 2	// Maximum number of WiFi Access Points to store in flash
 
 // Syslog server connection info
 //#define SYSLOG_SERVER "172.16.51.159"

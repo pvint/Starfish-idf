@@ -441,10 +441,53 @@ uint8_t readTC74()
 void connectWifi()
 {
 	// Connect using arduino libs
-	ESP_LOGI(TAG, "Connecting to WiFi (%s)...", EXAMPLE_ESP_WIFI_SSID);
+	
+	// Initial setup for storing WiFi creds in nvs: If there's one set, store it in nvs
+	// Put the new one as first priority, push the previous first one (if any) to second
+
+	char wifiSsid[MAX_APS][32];
+	char wifiPassword[MAX_APS][64];
+
+	// attempt to get from NVS
+	// BFI
+	nvs_handle my_handle;
+	esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
+
+	if (err != ESP_OK)
+	{
+		printf("Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+	}
+	else
+	{
+		size_t strSize;
+		err = nvs_get_str(my_handle, "ssid0", NULL, &strSize);
+		if (strSize == 0)
+		{
+			strcpy(wifiSsid[0], EXAMPLE_ESP_WIFI_SSID);
+			ESP_LOGI(TAG, "No SSID in NVS, using from config");
+			strcpy(wifiPassword[0], EXAMPLE_ESP_WIFI_PASS);
+		}
+		else
+		{
+			nvs_get_str(my_handle, "ssid0", wifiSsid[0], &strSize);
+			ESP_LOGI(TAG, "Got SSID (length %d) from flash: %s", strSize, wifiSsid[0]);
+			nvs_get_str(my_handle, "pass0", wifiPassword[0], &strSize);
+		}
+	}
+
+	// if EXAMPLE_ESP_WIFI_SSID is set, put it in nvs slot 0 and move previous slot 0 to slot 1
+	if (strlen(EXAMPLE_ESP_WIFI_SSID))
+	{
+		nvs_set_str(my_handle, "ssid1", wifiSsid[0]);
+		nvs_set_str(my_handle, "pass1", wifiPassword[0]);
+		nvs_set_str(my_handle, "ssid0", EXAMPLE_ESP_WIFI_SSID);
+		nvs_set_str(my_handle, "pass0", EXAMPLE_ESP_WIFI_PASS);
+	}
+
+	ESP_LOGI(TAG, "Connecting to WiFi (%s)...", wifiSsid[0]);
 	WiFi.disconnect();
 
-	WiFi.begin(EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+	WiFi.begin(wifiSsid[0], wifiPassword[0]);
 
 	int i = 0;
 	while (WiFi.status() != WL_CONNECTED)
@@ -454,7 +497,7 @@ void connectWifi()
 			i++;
 			if ( i / 4 > wifiTimeout )
 			{
-					ESP_LOGE("Timeout connecting to %s\n", EXAMPLE_ESP_WIFI_SSID);
+					ESP_LOGE(TAG, "Timeout connecting to %s\n", wifiSsid[0]);
 					return;
 			}
 	}

@@ -441,23 +441,90 @@ uint8_t readTC74()
 void connectWifi()
 {
 	// Connect using arduino libs
-	ESP_LOGI(TAG, "Connecting to WiFi (%s)...", EXAMPLE_ESP_WIFI_SSID);
-	WiFi.disconnect();
+	
+	// Initial setup for storing WiFi creds in nvs: If there's one set, store it in nvs
+	// Put the new one as first priority, push the previous first one (if any) to second
 
-	WiFi.begin(EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+	char wifiSsid[MAX_APS][32];
+	char wifiPassword[MAX_APS][64];
 
-	int i = 0;
-	while (WiFi.status() != WL_CONNECTED)
+	// attempt to get from NVS
+	// BFI
+	nvs_handle my_handle;
+	esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
+
+	if (err != ESP_OK)
 	{
-			delay(250);
-			//Serial.print(".");
-			i++;
-			if ( i / 4 > wifiTimeout )
-			{
-					ESP_LOGE("Timeout connecting to %s\n", EXAMPLE_ESP_WIFI_SSID);
-					return;
-			}
+		printf("Error (%s) opening NVS handle!\n", esp_err_to_name(err));
 	}
+	else
+	{
+		size_t strSize;
+		char c[6];
+
+		for (uint8_t i = 0; i < MAX_APS; i++)
+		{
+			sprintf(c, "ssid%d", i);
+			err = nvs_get_str(my_handle, c, NULL, &strSize);
+			if (strSize == 0)
+			{
+				strcpy(wifiSsid[i], EXAMPLE_ESP_WIFI_SSID);
+				ESP_LOGI(TAG, "No SSID%d in NVS, using from config", i);
+				strcpy(wifiPassword[i], EXAMPLE_ESP_WIFI_PASS);
+			}
+			else
+			{
+				nvs_get_str(my_handle, c, wifiSsid[i], &strSize);
+				ESP_LOGI(TAG, "Got SSID%d (length %d) from flash: %s", i, strSize, wifiSsid[i]);
+				sprintf(c, "pass%d", i);
+				nvs_get_str(my_handle, c, wifiPassword[i], &strSize);
+			}
+		}
+	}
+
+	// if EXAMPLE_ESP_WIFI_SSID is set, put it in nvs slot 0 and move previous slot 0 to slot 1
+	if (strlen(EXAMPLE_ESP_WIFI_SSID))
+	{
+		ESP_LOGI(TAG, "Writing %s to ssid1 in NVS", wifiSsid[0]);
+		nvs_set_str(my_handle, "ssid1", wifiSsid[0]);
+		nvs_set_str(my_handle, "pass1", wifiPassword[0]);
+		ESP_LOGI(TAG, "Writing %s to ssid0 in NVS", EXAMPLE_ESP_WIFI_SSID);
+		nvs_set_str(my_handle, "ssid0", EXAMPLE_ESP_WIFI_SSID);
+		nvs_set_str(my_handle, "pass0", EXAMPLE_ESP_WIFI_PASS);
+		strcpy(wifiSsid[1], wifiSsid[0]);
+		strcpy(wifiPassword[1], wifiPassword[0]);
+		strcpy(wifiSsid[0], EXAMPLE_ESP_WIFI_SSID);
+		strcpy(wifiPassword[0], EXAMPLE_ESP_WIFI_PASS);
+	}
+
+	// clear EXAMPLE_ESP_WIFI_**** to ensure this doesn't get re-written to flash
+	#undef EXAMPLE_ESP_WIFI_SSID
+	#undef EXAMPLE_ESP_WIFI_PASS
+
+	uint8_t i = 0;
+	while (i < MAX_APS)
+	{
+		ESP_LOGI(TAG, "Connecting to WiFi (%s)...", wifiSsid[i]);
+		WiFi.disconnect();
+
+		WiFi.begin(wifiSsid[i], wifiPassword[i]);
+
+		int n = 0;
+		while (WiFi.status() != WL_CONNECTED)
+		{
+				delay(250);
+				//Serial.print(".");
+				n++;
+				if ( n / 4 > wifiTimeout )
+				{
+						ESP_LOGE(TAG, "Timeout connecting to %s\n", wifiSsid[i]);
+						i++;
+						continue;
+				}
+		}
+		// connected
+		break;
+	} // while
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	IPAddress local_adr = WiFi.localIP();
 	ESP_LOGI(TAG, "local ip address: %d.%d.%d.%d", local_adr[0],local_adr[1],local_adr[2],local_adr[3]);

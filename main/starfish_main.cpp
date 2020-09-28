@@ -837,48 +837,63 @@ extern "C" void app_main()
 	
 
 	// OTA setup
-  server.on("/", HTTP_GET, []() {
-    server.sendHeader("Connection", "close");
-    server.send(200, "text/html", loginIndex);
-    blinkOTA = 0;
-  });
-  server.on("/serverIndex", HTTP_GET, []() {
-    server.sendHeader("Connection", "close");
-    server.send(200, "text/html", serverIndex);
-    blinkOTA = 0;
-  });
-  /*handling uploading firmware file */
-  server.on("/update", HTTP_POST, []() {
-    server.sendHeader("Connection", "close");
-    server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
-    blinkOTA = 0;
-    ESP.restart();
-  }, []() {
-    HTTPUpload& upload = server.upload();
-    if (upload.status == UPLOAD_FILE_START) {
-      Serial.printf("Update: %s\n", upload.filename.c_str());
-      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
-        Update.printError(Serial);
-      }
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
-      /* flashing firmware to ESP*/
-      // start the LED blinking
-      blinkOTA = 1;
-      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+	server.on("/", HTTP_GET, []() 
+	{
+		server.sendHeader("Connection", "close");
+		server.send(200, "text/html", loginIndex);
+		blinkOTA = 0;
+	});
+
+	server.on("/serverIndex", HTTP_GET, []() 
+	{
+		server.sendHeader("Connection", "close");
+		server.send(200, "text/html", serverIndex);
+		blinkOTA = 0;
+	});
+
+	/*handling uploading firmware file */
+	server.on("/update", HTTP_POST, []() 
+	{
+		server.sendHeader("Connection", "close");
+		server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+		blinkOTA = 0;
+		ESP.restart();
+	}, []() {
+	HTTPUpload& upload = server.upload();
+	if (upload.status == UPLOAD_FILE_START) 
+	{
+		Serial.printf("Update: %s\n", upload.filename.c_str());
+		if (!Update.begin(UPDATE_SIZE_UNKNOWN))  //start with max available size
+		{
+			Update.printError(Serial);
+		}
+	} 
+	else if (upload.status == UPLOAD_FILE_WRITE) 
+	{
+		/* flashing firmware to ESP*/
+		// start the LED blinking
+		blinkOTA = 1;
+		if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) 
+		{
+			// stop flashing LED
+			blinkOTA = 0;
+			Update.printError(Serial);
+		}
+	} 
+	else if (upload.status == UPLOAD_FILE_END) 
+	{
+		if (Update.end(true)) { //true to set the size to the current progress
+		Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+	} 
+	else 
+	{
+		Update.printError(Serial);
+	}
+
 	// stop flashing LED
 	blinkOTA = 0;
-        Update.printError(Serial);
-      }
-    } else if (upload.status == UPLOAD_FILE_END) {
-      if (Update.end(true)) { //true to set the size to the current progress
-        Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
-      } else {
-        Update.printError(Serial);
-      }
-    // stop flashing LED
-    blinkOTA = 0;
-    }
-  });
+	}
+	});
 
 	server.begin();
 

@@ -18,6 +18,8 @@
 #include "esp_bt_device.h"
 #include "esp_spp_api.h"
 
+#include "driver/gpio.h"
+
 #include <cJSON.h>
 
 #include "lwip/err.h"
@@ -28,6 +30,12 @@
 
 #include "SSD1306Wire.h"
 #include <math.h>
+
+// For OTA
+#include <WebServer.h>
+#include <Update.h>
+#include "ota.h"
+#define OTA_LED 5
 
 #define TC74_ADDRESS 0x4D
 

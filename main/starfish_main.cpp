@@ -8,6 +8,8 @@ WiFiUDP udpClient;
 // Create a new syslog instance with LOG_KERN facility
 Syslog syslog(udpClient, CONFIG_ESP_SYSLOG_SERVER, SYSLOG_PORT, CONFIG_ESP_DEVICE_NAME, APP_NAME, LOG_INFO);
 
+// OTA Webserver
+WebServer server(OTA_WEBSERVER_PORT);
 
 /* The event group allows multiple bits for each event, but we only care about one event 
  * - are we connected to the AP with an IP? */
@@ -24,10 +26,11 @@ char pwd[32];
 char ip_address[16];
 
 int wifiTimeout = 20;
-WiFiServer server(8080);
 bool wifiConnected = false;
 bool hasCredentials = false;
 bool connStatusChanged = false;
+
+int blinkOTA = 0;
 
 fauxmoESP fauxmo;
 
@@ -315,6 +318,30 @@ static void parseJson(cJSON *root)
 	}
 }
 
+void blinkLED(void *parameter)
+{
+	gpio_pad_select_gpio((gpio_num_t) OTA_LED);
+	gpio_set_direction((gpio_num_t) OTA_LED, GPIO_MODE_OUTPUT);
+	gpio_set_level((gpio_num_t) OTA_LED, 0);
+	int ledStatus = 0;
+
+	while (1)
+	{
+		if (blinkOTA == 1)
+		{
+			ledStatus = 1 - ledStatus;
+			gpio_set_level((gpio_num_t) OTA_LED, ledStatus);	
+		}	// if (blinkLedOTA)
+		else
+		{
+			gpio_set_level((gpio_num_t) OTA_LED, 0);
+			ledStatus = 0;
+		}
+		vTaskDelay(50 / portTICK_PERIOD_MS);
+	}	// while
+}
+
+
 void pollADC( void *parameter)
 {
 	ESP_LOGI(TAG, "**** pollADC task");
@@ -380,6 +407,9 @@ void pollFauxmo( void * parameter )
 	while (1)
 	{
 		fauxmo.handle();
+		// OTA
+		server.handleClient();
+
 		vTaskDelay(10 / portTICK_PERIOD_MS);
 	}
      	
@@ -805,11 +835,81 @@ extern "C" void app_main()
 
 	syslog.logf(LOG_INFO, "IP Address: %s", ip_address);
 	
+
+	// OTA setup
+	server.on("/", HTTP_GET, []() 
+	{
+		server.sendHeader("Connection", "close");
+		server.send(200, "text/html", loginIndex);
+		blinkOTA = 0;
+	});
+
+	server.on("/serverIndex", HTTP_GET, []() 
+	{
+		server.sendHeader("Connection", "close");
+		server.send(200, "text/html", serverIndex);
+		blinkOTA = 0;
+	});
+
+	/*handling uploading firmware file */
+	server.on("/update", HTTP_POST, []() 
+	{
+		server.sendHeader("Connection", "close");
+		server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+		blinkOTA = 0;
+		ESP.restart();
+	}, []() {
+	HTTPUpload& upload = server.upload();
+	if (upload.status == UPLOAD_FILE_START) 
+	{
+		Serial.printf("Update: %s\n", upload.filename.c_str());
+		if (!Update.begin(UPDATE_SIZE_UNKNOWN))  //start with max available size
+		{
+			Update.printError(Serial);
+		}
+	} 
+	else if (upload.status == UPLOAD_FILE_WRITE) 
+	{
+		/* flashing firmware to ESP*/
+		// start the LED blinking
+		blinkOTA = 1;
+		if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) 
+		{
+			// stop flashing LED
+			blinkOTA = 0;
+			Update.printError(Serial);
+		}
+	} 
+	else if (upload.status == UPLOAD_FILE_END) 
+	{
+		if (Update.end(true)) { //true to set the size to the current progress
+		Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+	} 
+	else 
+	{
+		Update.printError(Serial);
+	}
+
+	// stop flashing LED
+	blinkOTA = 0;
+	}
+	});
+
+	server.begin();
+
 	// Create the fauxmo polling task
 	xTaskCreate(
                     pollFauxmo,          /* Task function. */
                     "PollFauxmo",        /* String with name of task. */
                     10000,            /* Stack size in bytes. */
+                    NULL,             /* Parameter passed as input of the task */
+                    1,                /* Priority of the task. */
+                    NULL);            /* Task handle. */
+
+	xTaskCreate(
+                    blinkLED,          /* Task function. */
+                    "blinkLED",        /* String with name of task. */
+                    2048,            /* Stack size in bytes. */
                     NULL,             /* Parameter passed as input of the task */
                     1,                /* Priority of the task. */
                     NULL);            /* Task handle. */

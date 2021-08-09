@@ -33,6 +33,7 @@ THE SOFTWARE.
 #define FAUXMO_TCP_MAX_CLIENTS      10
 #define FAUXMO_TCP_PORT             1901
 #define FAUXMO_RX_TIMEOUT           3
+#define FAUXMO_DEVICE_UNIQUE_ID_LENGTH  12
 
 //#define DEBUG_FAUXMO                Serial
 #ifdef DEBUG_FAUXMO
@@ -60,7 +61,7 @@ THE SOFTWARE.
     #include <ESPAsyncTCP.h>
 #elif defined(ESP32)
     #include <WiFi.h>
-    #include "AsyncTCP.h"
+    #include <AsyncTCP.h>
 #else
 	#error Platform not supported
 #endif
@@ -68,6 +69,7 @@ THE SOFTWARE.
 #include <WiFiUdp.h>
 #include <functional>
 #include <vector>
+#include <MD5Builder.h>
 #include "templates.h"
 
 typedef std::function<void(unsigned char, const char *, bool, unsigned char)> TSetStateCallback;
@@ -76,6 +78,7 @@ typedef struct {
     char * name;
     bool state;
     unsigned char value;
+    char uniqueid[28];
 } fauxmoesp_device_t;
 
 class fauxmoESP {
@@ -91,6 +94,7 @@ class fauxmoESP {
         bool removeDevice(const char * device_name);
         char * getDeviceName(unsigned char id, char * buffer, size_t len);
         int getDeviceId(const char * device_name);
+        void setDeviceUniqueId(unsigned char id, const char *uniqueid);
         void onSetState(TSetStateCallback fn) { _setCallback = fn; }
         bool setState(unsigned char id, bool state, unsigned char value);
         bool setState(const char * device_name, bool state, unsigned char value);
@@ -114,7 +118,7 @@ class fauxmoESP {
         AsyncClient * _tcpClients[FAUXMO_TCP_MAX_CLIENTS];
         TSetStateCallback _setCallback = NULL;
 
-        String _deviceJson(unsigned char id);
+        String _deviceJson(unsigned char id, bool all); 	// all = true means we are listing all devices so use full description template
 
         void _handleUDP();
         void _onUDPData(const IPAddress remoteIP, unsigned int remotePort, void *data, size_t len);
@@ -128,4 +132,6 @@ class fauxmoESP {
         bool _onTCPControl(AsyncClient *client, String url, String body);
         void _sendTCPResponse(AsyncClient *client, const char * code, char * body, const char * mime);
 
+        String _byte2hex(uint8_t zahl);
+        String _makeMD5(String text);
 };
